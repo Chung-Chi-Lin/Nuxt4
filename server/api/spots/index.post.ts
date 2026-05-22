@@ -3,7 +3,7 @@ export default defineEventHandler(async (event) => {
   const token      = authHeader.replace('Bearer ', '').trim()
   if (!token) throw createError({ statusCode: 401, statusMessage: '未登入' })
 
-  const { name, emoji, lat, lng, tags, notes, is_public } = await readBody(event)
+  const { name, emoji, lat, lng, tags, notes, is_public, address } = await readBody(event)
 
   if (!name?.trim())
     throw createError({ statusCode: 400, statusMessage: '請填寫地點名稱' })
@@ -49,6 +49,7 @@ export default defineEventHandler(async (event) => {
       notes:      cleanNotes,
       is_public:  Boolean(is_public),
       xp_earned:  xpGained,
+      address:    address?.trim() || null,
     })
     .select()
     .single()

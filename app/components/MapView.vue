@@ -89,6 +89,7 @@
       :source-name="addModalName"
       :token="token"
       :poi-info="addPoiInfo"
+      :address="addAddress"
       @saved="onSpotSaved"
       @cancel="onModalCancel"
     />
@@ -115,6 +116,25 @@
       :spot-id="reportingSpotId"
       :token="token"
       @close="reportingSpotId = null"
+    />
+
+    <!-- 查看評論 Modal -->
+    <SpotCommentsModal
+      v-if="viewingCommentSpot"
+      :spot-id="viewingCommentSpot.id"
+      :spot-name="viewingCommentSpot.name"
+      :token="token"
+      @close="viewingCommentSpot = null"
+    />
+
+    <!-- 撰寫評論 Modal -->
+    <WriteCommentModal
+      v-if="writingCommentSpot"
+      :spot-id="writingCommentSpot.id"
+      :spot-name="writingCommentSpot.name"
+      :token="token"
+      @close="writingCommentSpot = null"
+      @saved="writingCommentSpot = null"
     />
 
   </div>
@@ -171,14 +191,17 @@ const showAddModal = ref(false)
 const addLatLng    = ref({ lat: 0, lng: 0 })
 const addModalName = ref('')
 const addPoiInfo   = ref<{ name: string; type: string; found: boolean; loading: boolean } | null>(null)
+const addAddress   = ref('')
 
 // ── XP 結果 ─────────────────────────────────────────────────
 const xpResult    = ref<any>(null)
 const showXpModal = ref(false)
 
 // ── 編輯標記 ─────────────────────────────────────────────────
-const editingSpot     = ref<DbSpot | null>(null)
-const reportingSpotId = ref<string | null>(null)
+const editingSpot        = ref<DbSpot | null>(null)
+const reportingSpotId    = ref<string | null>(null)
+const viewingCommentSpot = ref<{ id: string; name: string } | null>(null)
+const writingCommentSpot = ref<{ id: string; name: string } | null>(null)
 
 // ── 關閉搜尋結果（點外部）──────────────────────────────────
 function onClickOutside(e: MouseEvent) {
@@ -195,7 +218,10 @@ onMounted(async () => {
   if (!mapEl.value) return
   L = (await import('leaflet')).default
 
-  leafletMap = L.map(mapEl.value, { zoomControl: false }).setView([25.0380, 121.5420], 13)
+  const initCenter: [number, number] = props.flyTo
+    ? [props.flyTo.lat, props.flyTo.lng]
+    : [25.0380, 121.5420]
+  leafletMap = L.map(mapEl.value, { zoomControl: false }).setView(initCenter, props.flyTo ? 16 : 13)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
@@ -311,6 +337,18 @@ function addDbMarker(spot: DbSpot) {
       ).join('')}</div>`
     : ''
 
+  const gmapsNavUrl = `https://www.google.com/maps/dir/?api=1&destination=${spot.lat},${spot.lng}`
+  const addressHtml = `<div style="margin-top:4px;display:flex;align-items:center;gap:4px">
+    ${spot.address
+      ? `<span style="flex:1;font-size:10px;color:#9C7B5C;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${spot.address}">📍 ${spot.address}</span>`
+      : '<span style="flex:1"></span>'
+    }
+    <a href="${gmapsNavUrl}" target="_blank" rel="noopener noreferrer"
+       style="flex-shrink:0;background:#4285F4;color:white;padding:2px 8px;border-radius:10px;font-size:10px;text-decoration:none;font-weight:700;white-space:nowrap;font-family:'Noto Sans TC',sans-serif">
+      🗺️ 導航
+    </a>
+  </div>`
+
   const notesHtml = spot.notes
     ? `<div style="font-size:11px;color:#9C7B5C;margin-top:5px;border-top:1px solid #E8D9C0;padding-top:4px">${spot.notes}</div>`
     : ''
@@ -326,13 +364,23 @@ function addDbMarker(spot: DbSpot) {
     : ''
 
   const isOwn = spot.user_id === props.userId
+  const btnStyle = (bg: string, color: string, border: string) =>
+    `background:${bg};color:${color};border:1px solid ${border};padding:4px 0;border-radius:6px;cursor:pointer;font-size:11px;font-family:'Noto Sans TC',sans-serif`
+
   const actionsHtml = isOwn
-    ? `<div style="display:flex;gap:5px;margin-top:7px">
-        <button data-edit="${spot.id}" style="flex:1;background:#FFF8EE;color:#C8860A;border:1px solid #E8C97A;padding:4px 0;border-radius:6px;cursor:pointer;font-size:11px;font-family:'Noto Sans TC',sans-serif">✏️ 編輯</button>
-        <button data-del="${spot.id}" style="flex:1;background:#fef2f2;color:#C0392B;border:1px solid #fca5a5;padding:4px 0;border-radius:6px;cursor:pointer;font-size:11px;font-family:'Noto Sans TC',sans-serif">🗑 刪除</button>
+    ? `<div style="display:flex;flex-direction:column;gap:5px;margin-top:7px">
+        <div style="display:flex;gap:5px">
+          <button data-edit="${spot.id}" style="flex:1;${btnStyle('#FFF8EE','#C8860A','#E8C97A')}">✏️ 編輯</button>
+          <button data-del="${spot.id}"  style="flex:1;${btnStyle('#fef2f2','#C0392B','#fca5a5')}">🗑 刪除</button>
+        </div>
+        <button data-comment-view="${spot.id}" style="width:100%;${btnStyle('#F0FDF4','#16A34A','#BBF7D0')}">💬 查看評論</button>
       </div>`
-    : `<div style="margin-top:7px">
-        <button data-report="${spot.id}" style="width:100%;background:#fafafa;color:#9C7B5C;border:1px solid #E8D9C0;padding:4px 0;border-radius:6px;cursor:pointer;font-size:11px;font-family:'Noto Sans TC',sans-serif">⚠️ 回報此標記</button>
+    : `<div style="display:flex;flex-direction:column;gap:5px;margin-top:7px">
+        <div style="display:flex;gap:5px">
+          <button data-comment-write="${spot.id}" style="flex:1;${btnStyle('#EEF2FF','#4F46E5','#C7D2FE')}">✏️ 評論</button>
+          <button data-report="${spot.id}"        style="flex:1;${btnStyle('#fafafa','#9C7B5C','#E8D9C0')}">⚠️ 回報</button>
+        </div>
+        <button data-comment-view="${spot.id}" style="width:100%;${btnStyle('#F0FDF4','#16A34A','#BBF7D0')}">💬 查看評論</button>
       </div>`
 
   const visibilityHtml = `<div style="font-size:10px;color:#9C7B5C;margin-top:4px">${isOwn ? (spot.is_public ? '🌐 公開' : '🔒 僅自己') : '👤 其他用戶'}</div>`
@@ -342,6 +390,7 @@ function addDbMarker(spot: DbSpot) {
       <div style="font-family:'Noto Sans TC',sans-serif;min-width:140px;max-width:210px">
         <div style="font-weight:700;font-size:14px">${spot.emoji} ${spot.name}</div>
         ${visibilityHtml}
+        ${addressHtml}
         ${tagsHtml}
         ${notesHtml}
         ${photosHtml}
@@ -349,22 +398,31 @@ function addDbMarker(spot: DbSpot) {
       </div>`, { maxWidth: 230 })
     .addTo(dbSpotLayer)
 
-  if (isOwn) {
-    marker.on('popupopen', () => {
+  marker.on('popupopen', () => {
+    const viewBtn = document.querySelector(`[data-comment-view="${spot.id}"]`) as HTMLElement
+    if (viewBtn) viewBtn.onclick = () => {
+      leafletMap?.closePopup()
+      viewingCommentSpot.value = { id: spot.id, name: spot.name }
+    }
+
+    if (isOwn) {
       const editBtn = document.querySelector(`[data-edit="${spot.id}"]`) as HTMLElement
       const delBtn  = document.querySelector(`[data-del="${spot.id}"]`) as HTMLElement
       if (editBtn) editBtn.onclick = () => openEditSpot(spot)
       if (delBtn)  delBtn.onclick  = () => confirmDeleteSpot(spot)
-    })
-  } else {
-    marker.on('popupopen', () => {
+    } else {
       const reportBtn = document.querySelector(`[data-report="${spot.id}"]`) as HTMLElement
+      const writeBtn  = document.querySelector(`[data-comment-write="${spot.id}"]`) as HTMLElement
       if (reportBtn) reportBtn.onclick = () => {
         leafletMap?.closePopup()
         reportingSpotId.value = spot.id
       }
-    })
-  }
+      if (writeBtn) writeBtn.onclick = () => {
+        leafletMap?.closePopup()
+        writingCommentSpot.value = { id: spot.id, name: spot.name }
+      }
+    }
+  })
 }
 
 function openEditSpot(spot: DbSpot) {
@@ -439,11 +497,19 @@ function placeTempMarker(lat: number, lng: number, name: string) {
 // ── 位置驗證 ─────────────────────────────────────────────────
 const BUSINESS_CLASSES = new Set(['amenity', 'shop', 'tourism', 'leisure', 'craft', 'healthcare', 'office', 'building'])
 
+function buildAddressFromNominatim(addr: Record<string, string> = {}): string {
+  const road     = addr.road || addr.pedestrian || addr.footway || ''
+  const district = addr.suburb || addr.neighbourhood || addr.county || ''
+  const city     = addr.city || addr.town || addr.village || addr.municipality || ''
+  return [road, district, city].filter(Boolean).join(', ')
+}
+
 async function reverseGeocode(lat: number, lng: number) {
   addPoiInfo.value = { name: '', type: '', found: false, loading: true }
+  addAddress.value = ''
   try {
     const res = await $fetch<any>('https://nominatim.openstreetmap.org/reverse', {
-      params: { format: 'json', lat, lon: lng, zoom: 18, addressdetails: 0 },
+      params: { format: 'json', lat, lon: lng, zoom: 18, addressdetails: 1 },
     })
     addPoiInfo.value = {
       name:    res.name  ?? '',
@@ -451,6 +517,7 @@ async function reverseGeocode(lat: number, lng: number) {
       found:   !!(res.name && BUSINESS_CLASSES.has(res.class ?? '')),
       loading: false,
     }
+    addAddress.value = buildAddressFromNominatim(res.address ?? {})
   } catch {
     addPoiInfo.value = { name: '', type: '', found: false, loading: false }
   }
@@ -541,6 +608,7 @@ function onModalCancel() {
   showAddModal.value = false
   addMode.value = false
   addPoiInfo.value = null
+  addAddress.value = ''
   if (leafletMap) leafletMap.getContainer().style.cursor = ''
 }
 </script>

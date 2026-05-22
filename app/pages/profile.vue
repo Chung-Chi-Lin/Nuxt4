@@ -248,6 +248,19 @@
         </div>
       </div>
 
+      <!-- ── 後台管理 (admin only) ── -->
+      <div v-if="user?.role === 'admin'" class="bg-gray-800 rounded-2xl overflow-hidden shadow-sm">
+        <div class="px-5 py-3 border-b border-gray-700">
+          <h2 class="text-xs font-bold text-gray-400 tracking-wider uppercase">管理員</h2>
+        </div>
+        <div class="px-5 py-4">
+          <NuxtLink to="/admin"
+                    class="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gray-700 text-white font-bold text-sm hover:bg-gray-600 transition active:scale-95">
+            ⚙️ 後台管理系統
+          </NuxtLink>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -263,6 +276,7 @@ interface UserProfile {
   avatar_url: string | null
   user_level: number
   xp: number
+  role?: string
 }
 
 // XP to reach level N (same formula as server/utils/xp.ts)
@@ -278,7 +292,7 @@ const token = useCookie('auth_token')
 const { data: meData } = await useFetch('/api/auth/me', {
   headers: { Authorization: `Bearer ${token.value ?? ''}` },
 })
-const user = ref<UserProfile | null>(meData.value?.user as UserProfile ?? null)
+const user = ref<UserProfile | null>((meData.value?.user as UserProfile) ?? null)
 
 // XP progress within current level
 const currentLevelXp = computed(() => {

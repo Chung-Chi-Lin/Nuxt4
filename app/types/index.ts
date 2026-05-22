@@ -25,6 +25,17 @@ export interface DbSpot {
   photo_urls: string[]
   xp_earned: number
   created_at: string
+  address?: string
+}
+
+export interface SpotComment {
+  id: string
+  user_id: string
+  username: string
+  avatar_url: string | null
+  content: string
+  created_at: string
+  is_mine: boolean
 }
 
 export interface AuthUser {
@@ -34,6 +45,7 @@ export interface AuthUser {
   avatar_url?: string | null
   user_level?: number
   xp?: number
+  role?: string
 }
 
 export interface LoginResponse {

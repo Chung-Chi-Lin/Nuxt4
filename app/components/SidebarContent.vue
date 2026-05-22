@@ -38,9 +38,9 @@
       <!-- Spots -->
       <template v-else-if="filteredSpots.length">
         <div v-for="(spot, idx) in filteredSpots" :key="spot.id"
-          @click="emit('select', spot)"
-          class="bg-food-beige rounded-xl p-3 cursor-pointer border border-transparent hover:border-food-caramel transition active:scale-[0.98] group">
-          <div class="flex items-start gap-2.5">
+          class="bg-food-beige rounded-xl p-3 border border-transparent hover:border-food-caramel transition group">
+          <!-- Main click area -->
+          <div class="flex items-start gap-2.5 cursor-pointer" @click="emit('select', spot)">
             <!-- Emoji + rank badge -->
             <div class="relative shrink-0 mt-0.5">
               <span class="text-2xl leading-none select-none">{{ spot.emoji }}</span>
@@ -55,6 +55,9 @@
                 <span class="text-[10px] text-food-muted shrink-0 font-mono tabular-nums">{{ formatDist(spot.distance) }}</span>
               </div>
               <p v-if="spot.notes" class="text-food-muted text-xs mt-0.5 line-clamp-1 leading-relaxed">{{ spot.notes }}</p>
+              <p v-if="spot.address" class="text-food-muted text-[10px] mt-0.5 truncate leading-relaxed">
+                📍 {{ spot.address }}
+              </p>
               <div v-if="spot.tags?.length" class="flex flex-wrap gap-1 mt-1.5">
                 <span v-for="t in spot.tags.slice(0, 3)" :key="t"
                   class="px-1.5 py-0.5 bg-food-surface rounded-full text-[10px] text-food-muted border border-food-border">
@@ -65,6 +68,20 @@
                 </span>
               </div>
             </div>
+          </div>
+
+          <!-- 評論 + 查看評論 -->
+          <div class="mt-2 flex gap-1.5">
+            <button
+              v-if="currentUserId && spot.user_id !== currentUserId"
+              class="flex-1 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-[11px] text-indigo-600 font-bold hover:bg-indigo-100 transition"
+              @click.stop="emit('write-comment', { id: spot.id, name: spot.name })"
+            >✏️ 評論</button>
+            <button
+              :class="currentUserId && spot.user_id !== currentUserId ? 'flex-1' : 'w-full'"
+              class="py-1.5 rounded-lg bg-food-surface border border-food-border text-[11px] text-food-muted font-bold hover:border-green-300 hover:text-green-700 hover:bg-green-50 transition"
+              @click.stop="emit('view-comments', { id: spot.id, name: spot.name })"
+            >💬 查看評論</button>
           </div>
         </div>
       </template>
@@ -100,14 +117,21 @@ export interface SidebarSpot {
   notes: string
   is_public: boolean
   distance: number
+  address?: string
+  user_id: string
 }
 
 const props = defineProps<{
   spots: SidebarSpot[]
   loading: boolean
+  currentUserId?: string
 }>()
 
-const emit = defineEmits<{ select: [spot: SidebarSpot] }>()
+const emit = defineEmits<{
+  select:           [spot: SidebarSpot]
+  'view-comments':  [payload: { id: string; name: string }]
+  'write-comment':  [payload: { id: string; name: string }]
+}>()
 
 const search = ref('')
 

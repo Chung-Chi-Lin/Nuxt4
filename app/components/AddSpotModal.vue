@@ -161,6 +161,7 @@ const props = defineProps<{
   sourceName?: string
   token: string
   poiInfo?: { name: string; type: string; found: boolean; loading: boolean } | null
+  address?: string
 }>()
 
 const emit = defineEmits<{
@@ -253,6 +254,7 @@ async function handleSave() {
         tags:      tags.value,
         notes:     notes.value.trim(),
         is_public: isPublic.value,
+        address:   props.address || null,
       },
     })
 

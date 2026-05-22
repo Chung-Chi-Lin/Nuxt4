@@ -53,7 +53,7 @@
             :selected-spot="selectedSpot"
             :token="token ?? ''"
             :user-id="user?.id ?? ''"
-            :fly-to="userLocation"
+            :fly-to="effectiveFlyTo"
             @spots-updated="onSpotsUpdated"
             @center-changed="onCenterChanged"
           />
@@ -73,7 +73,14 @@
         :style="{ width: sidebarOpen ? '320px' : '0px' }"
       >
         <div class="w-80 flex flex-col h-full overflow-y-auto">
-          <SidebarContent :spots="sidebarSpots" :loading="spotsLoading" @select="handleSpotSelect" />
+          <SidebarContent
+            :spots="sidebarSpots"
+            :loading="spotsLoading"
+            :current-user-id="user?.id ?? ''"
+            @select="handleSpotSelect"
+            @view-comments="onSidebarViewComments"
+            @write-comment="onSidebarWriteComment"
+          />
         </div>
       </aside>
 
@@ -103,7 +110,14 @@
           <div class="flex justify-center pt-3 pb-1">
             <div class="w-10 h-1 rounded-full bg-food-border"></div>
           </div>
-          <SidebarContent :spots="sidebarSpots" :loading="spotsLoading" @select="handleSpotSelect" />
+          <SidebarContent
+            :spots="sidebarSpots"
+            :loading="spotsLoading"
+            :current-user-id="user?.id ?? ''"
+            @select="handleSpotSelect"
+            @view-comments="onSidebarViewComments"
+            @write-comment="onSidebarWriteComment"
+          />
         </div>
       </div>
     </div>
@@ -119,6 +133,25 @@
 
     <LocationPermissionModal :open="show" @allow="allow" @deny="deny" />
     <HelpBot />
+
+    <!-- 查看評論 Modal（由右側小卡觸發）-->
+    <SpotCommentsModal
+      v-if="sidebarViewingSpot"
+      :spot-id="sidebarViewingSpot.id"
+      :spot-name="sidebarViewingSpot.name"
+      :token="token ?? ''"
+      @close="sidebarViewingSpot = null"
+    />
+
+    <!-- 撰寫評論 Modal（由右側小卡觸發）-->
+    <WriteCommentModal
+      v-if="sidebarWritingSpot"
+      :spot-id="sidebarWritingSpot.id"
+      :spot-name="sidebarWritingSpot.name"
+      :token="token ?? ''"
+      @close="sidebarWritingSpot = null"
+      @saved="sidebarWritingSpot = null"
+    />
 
   </div>
 </template>
@@ -140,20 +173,31 @@ function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): num
 }
 
 const router = useRouter()
+const route  = useRoute()
 const token  = useCookie('auth_token')
 
-const sidebarOpen  = ref(false)
-const selectedSpot = ref<GeoLocation | null>(null)
-const dbSpots      = ref<DbSpot[]>([])
-const spotsLoading = ref(false)
-const mapCenter    = ref<GeoLocation>({ lat: 25.0380, lng: 121.5420 })
-const spots: Spot[] = []
+const sidebarOpen         = ref(false)
+const selectedSpot        = ref<GeoLocation | null>(null)
+const dbSpots             = ref<DbSpot[]>([])
+const spotsLoading        = ref(false)
+const mapCenter           = ref<GeoLocation>({ lat: 25.0380, lng: 121.5420 })
+const spots: Spot[]       = []
+const sidebarViewingSpot  = ref<{ id: string; name: string } | null>(null)
+const sidebarWritingSpot  = ref<{ id: string; name: string } | null>(null)
 
 const { show, userLocation, requestIfNeeded, allow, deny } = useGeoModal()
 
+const queryCenter = computed<GeoLocation | null>(() => {
+  const lat = parseFloat(route.query.lat as string)
+  const lng = parseFloat(route.query.lng as string)
+  return !isNaN(lat) && !isNaN(lng) ? { lat, lng } : null
+})
+
+const effectiveFlyTo = computed(() => queryCenter.value ?? userLocation.value)
+
 onMounted(() => {
   if (window.innerWidth >= 768) sidebarOpen.value = true
-  requestIfNeeded()
+  if (!queryCenter.value) requestIfNeeded()
 })
 
 const { data, error } = await useFetch<{ user: AuthUser }>('/api/auth/me', {
@@ -189,5 +233,13 @@ function handleSpotSelect(spot: GeoLocation): void {
 function handleLogout(): void {
   token.value = null
   router.push('/login')
+}
+
+function onSidebarViewComments(payload: { id: string; name: string }): void {
+  sidebarViewingSpot.value = payload
+}
+
+function onSidebarWriteComment(payload: { id: string; name: string }): void {
+  sidebarWritingSpot.value = payload
 }
 </script>
