@@ -12,7 +12,11 @@
       <span class="text-2xl leading-none">{{ weather.emoji }}</span>
       <div class="leading-tight">
         <div class="font-bold text-food-brown text-sm">{{ weather.temp }}°C</div>
-        <div class="text-xs text-food-muted">{{ weather.desc }}</div>
+        <div class="flex items-center gap-1.5 text-xs text-food-muted">
+          <span>{{ weather.desc }}</span>
+          <span class="text-food-border">·</span>
+          <span>💧{{ weather.precipProb }}%</span>
+        </div>
       </div>
     </template>
   </div>
@@ -25,6 +29,7 @@ interface WeatherData {
   desc: string
   precip: number
   windSpeed: number
+  precipProb: number
 }
 
 const props = defineProps<{ lat: number; lng: number }>()

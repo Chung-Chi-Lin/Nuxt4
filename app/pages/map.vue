@@ -118,6 +118,7 @@
     </button>
 
     <LocationPermissionModal :open="show" @allow="allow" @deny="deny" />
+    <HelpBot />
 
   </div>
 </template>

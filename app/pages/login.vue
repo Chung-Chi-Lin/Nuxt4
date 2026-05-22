@@ -130,7 +130,7 @@ useHead({ title: '波吉的美食地圖' })
 type Mode = 'login' | 'register' | 'forgot'
 
 const router = useRouter()
-const token  = useCookie('auth_token')
+const token  = useCookie('auth_token', { maxAge: 3600 })
 
 const mode           = ref<Mode>('login')
 const loading        = ref(false)

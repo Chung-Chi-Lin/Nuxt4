@@ -76,7 +76,7 @@
     <!-- 新增標記 FAB（右下，在 Leaflet zoom 控制上方）-->
     <button @click="toggleAddMode"
       :class="addMode ? 'bg-food-red hover:bg-red-600' : 'bg-food-caramel hover:bg-food-orange'"
-      class="absolute bottom-20 right-3 z-[1000] w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white text-2xl font-bold transition hover:scale-105 active:scale-95 select-none"
+      class="absolute bottom-25 right-3 z-[1000] w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white text-2xl font-bold transition hover:scale-105 active:scale-95 select-none"
       :title="addMode ? '取消新增' : '新增標記'">
       {{ addMode ? '✕' : '＋' }}
     </button>
@@ -107,6 +107,14 @@
       :token="token"
       @saved="onSpotEdited"
       @cancel="editingSpot = null"
+    />
+
+    <!-- 回報標記 Modal -->
+    <ReportModal
+      v-if="reportingSpotId"
+      :spot-id="reportingSpotId"
+      :token="token"
+      @close="reportingSpotId = null"
     />
 
   </div>
@@ -152,7 +160,7 @@ const showResults   = ref(false)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 // ── Google Maps 連結 ────────────────────────────────────────
-const showGmapsInput = ref(false)
+const showGmapsInput = ref(true)
 const gmapsUrl       = ref('')
 const gmapsError     = ref('')
 const gmapsLoading   = ref(false)
@@ -169,7 +177,8 @@ const xpResult    = ref<any>(null)
 const showXpModal = ref(false)
 
 // ── 編輯標記 ─────────────────────────────────────────────────
-const editingSpot = ref<DbSpot | null>(null)
+const editingSpot     = ref<DbSpot | null>(null)
+const reportingSpotId = ref<string | null>(null)
 
 // ── 關閉搜尋結果（點外部）──────────────────────────────────
 function onClickOutside(e: MouseEvent) {
@@ -322,7 +331,9 @@ function addDbMarker(spot: DbSpot) {
         <button data-edit="${spot.id}" style="flex:1;background:#FFF8EE;color:#C8860A;border:1px solid #E8C97A;padding:4px 0;border-radius:6px;cursor:pointer;font-size:11px;font-family:'Noto Sans TC',sans-serif">✏️ 編輯</button>
         <button data-del="${spot.id}" style="flex:1;background:#fef2f2;color:#C0392B;border:1px solid #fca5a5;padding:4px 0;border-radius:6px;cursor:pointer;font-size:11px;font-family:'Noto Sans TC',sans-serif">🗑 刪除</button>
       </div>`
-    : ''
+    : `<div style="margin-top:7px">
+        <button data-report="${spot.id}" style="width:100%;background:#fafafa;color:#9C7B5C;border:1px solid #E8D9C0;padding:4px 0;border-radius:6px;cursor:pointer;font-size:11px;font-family:'Noto Sans TC',sans-serif">⚠️ 回報此標記</button>
+      </div>`
 
   const visibilityHtml = `<div style="font-size:10px;color:#9C7B5C;margin-top:4px">${isOwn ? (spot.is_public ? '🌐 公開' : '🔒 僅自己') : '👤 其他用戶'}</div>`
 
@@ -344,6 +355,14 @@ function addDbMarker(spot: DbSpot) {
       const delBtn  = document.querySelector(`[data-del="${spot.id}"]`) as HTMLElement
       if (editBtn) editBtn.onclick = () => openEditSpot(spot)
       if (delBtn)  delBtn.onclick  = () => confirmDeleteSpot(spot)
+    })
+  } else {
+    marker.on('popupopen', () => {
+      const reportBtn = document.querySelector(`[data-report="${spot.id}"]`) as HTMLElement
+      if (reportBtn) reportBtn.onclick = () => {
+        leafletMap?.closePopup()
+        reportingSpotId.value = spot.id
+      }
     })
   }
 }
