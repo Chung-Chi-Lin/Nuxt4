@@ -1,34 +1,58 @@
 <template>
-  <div v-if="data" class="overflow-hidden w-full min-w-0 cursor-default" @mouseenter="paused = true" @mouseleave="paused = false">
-    <div
-      class="flex whitespace-nowrap text-xs text-food-muted"
-      :style="{ animation: 'weather-marquee 28s linear infinite', animationPlayState: paused ? 'paused' : 'running' }"
-    >
-      <span class="shrink-0 px-4">{{ data.zh }}</span>
-      <span class="shrink-0 px-6 text-food-border select-none">｜</span>
-      <span class="shrink-0 px-4">{{ data.en }}</span>
-      <span class="shrink-0 px-6 text-food-border select-none">｜</span>
-      <!-- 複製一份做無縫循環 -->
-      <span class="shrink-0 px-4">{{ data.zh }}</span>
-      <span class="shrink-0 px-6 text-food-border select-none">｜</span>
-      <span class="shrink-0 px-4">{{ data.en }}</span>
-      <span class="shrink-0 px-6 text-food-border select-none">｜</span>
+  <div
+    v-if="data"
+    class="overflow-hidden flex w-full"
+    @mouseenter="paused = true"
+    @mouseleave="paused = false"
+  >
+    <div class="marquee-item" :class="{ paused }">
+      <span>{{ data.zh }}</span>
+      <span class="sep">·</span>
+      <span class="en">{{ data.en }}</span>
+    </div>
+    <div class="marquee-item" :class="{ paused }" aria-hidden="true">
+      <span>{{ data.zh }}</span>
+      <span class="sep">·</span>
+      <span class="en">{{ data.en }}</span>
     </div>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { useWeatherForecast } from '~/composables/useWeatherForecast'
-
 const paused = ref(false)
 const { data, load } = useWeatherForecast()
-
 onMounted(load)
 </script>
 
 <style scoped>
-@keyframes weather-marquee {
+.marquee-item {
+  min-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--color-food-muted, #9ca3af);
+  flex-shrink: 0;
+  animation: marquee-infinite 30s linear infinite;
+}
+
+.marquee-item.paused {
+  animation-play-state: paused;
+}
+
+.marquee-item .sep {
+  color: var(--color-food-border, #d1d5db);
+  padding: 0 0.25rem;
+}
+
+.marquee-item .en {
+  opacity: 0.75;
+  color: #b45309;
+}
+
+@keyframes marquee-infinite {
   from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
+  to   { transform: translateX(-100%); }
 }
 </style>

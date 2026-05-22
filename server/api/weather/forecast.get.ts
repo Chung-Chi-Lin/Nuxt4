@@ -1,4 +1,4 @@
-import { wmoZh, wmoEn, wmoEmoji } from '~/server/utils/weather'
+import { wmoZh, wmoEn, wmoEmoji } from '../../utils/weather'
 
 const REGIONS = [
   { nameZh: '北部', nameEn: 'North',   lat: 25.038, lng: 121.542 },

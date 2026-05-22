@@ -1,4 +1,4 @@
-import { wmoZh, wmoEmoji } from '~/server/utils/weather'
+import { wmoZh, wmoEmoji } from '../../utils/weather'
 
 interface OpenMeteoResponse {
   current: {

@@ -14,7 +14,7 @@
 
       <!-- Center: Weather marquee -->
       <div class="hidden md:flex flex-1 justify-center min-w-0 overflow-hidden px-3">
-        <Suspense><WeatherMarquee /></Suspense>
+        <WeatherMarquee />
       </div>
 
       <!-- Right: User -->
@@ -62,7 +62,7 @@
           <WeatherWidget
             :lat="mapCenter.lat"
             :lng="mapCenter.lng"
-            class="absolute top-3 left-3 z-[9998]"
+            class="absolute top-3 right-3 z-[9998]"
           />
         </ClientOnly>
       </div>
