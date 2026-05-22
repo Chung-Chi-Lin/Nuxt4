@@ -8,7 +8,9 @@
       "Bash(pnpm install *)",
       "WebSearch",
       "Bash(Remove-Item \"C:\\\\Users\\\\zhongqilin\\\\Desktop\\\\技術測試\\\\Nuxt4\\\\nuxt-app\\\\pnpm-lock.yaml.3809551195\" -Force)",
-      "Bash(Remove-Item \"C:\\\\Users\\\\zhongqilin\\\\Desktop\\\\技術測試\\\\Nuxt4\\\\nuxt-app\\\\pnpm-lock.yaml.523177728\" -Force)"
+      "Bash(Remove-Item \"C:\\\\Users\\\\zhongqilin\\\\Desktop\\\\技術測試\\\\Nuxt4\\\\nuxt-app\\\\pnpm-lock.yaml.523177728\" -Force)",
+      "Bash(npx nuxi *)",
+      "Bash(git *)"
     ]
   }
 }
