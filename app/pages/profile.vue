@@ -16,8 +16,8 @@
         <div class="relative group cursor-pointer" @click="triggerFileUpload">
           <!-- Avatar -->
           <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-food-border bg-food-beige">
-            <img v-if="avatarPreview || user?.avatar_url"
-                 :src="avatarPreview ?? user!.avatar_url!"
+            <img v-if="avatarPreview || pendingPresetUrl || user?.avatar_url"
+                 :src="avatarPreview ?? pendingPresetUrl ?? user!.avatar_url!"
                  alt="頭像"
                  class="w-full h-full object-cover" />
             <span v-else class="flex items-center justify-center w-full h-full text-4xl select-none">👤</span>
@@ -68,6 +68,88 @@
         <p class="text-xs text-food-muted text-center leading-relaxed">
           建議上傳正方形圖片，至少 200×200 px<br>格式：JPG / PNG / WebP，最大 2 MB
         </p>
+
+        <!-- Preset avatars -->
+        <div class="w-full pt-3.5 border-t border-food-border">
+
+          <!-- Header: label + page navigation -->
+          <div class="flex items-center justify-between mb-2.5">
+            <p class="text-[11px] font-bold text-food-muted tracking-wider uppercase">或選擇預設頭像</p>
+            <div class="flex items-center gap-1.5">
+              <button
+                class="w-6 h-6 rounded-full flex items-center justify-center text-food-muted hover:text-food-brown hover:bg-food-beige transition disabled:opacity-30 text-base font-bold"
+                :disabled="presetPage === 0"
+                @click="presetPage--; pendingPresetUrl = null"
+              >‹</button>
+              <div class="flex gap-1">
+                <button
+                  v-for="(page, i) in PRESET_PAGES"
+                  :key="i"
+                  class="w-1.5 h-1.5 rounded-full transition-colors"
+                  :class="presetPage === i ? 'bg-food-caramel' : 'bg-food-border hover:bg-food-muted'"
+                  @click="presetPage = i; pendingPresetUrl = null"
+                />
+              </div>
+              <button
+                class="w-6 h-6 rounded-full flex items-center justify-center text-food-muted hover:text-food-brown hover:bg-food-beige transition disabled:opacity-30 text-base font-bold"
+                :disabled="presetPage === PRESET_PAGES.length - 1"
+                @click="presetPage++; pendingPresetUrl = null"
+              >›</button>
+            </div>
+          </div>
+
+          <!-- Category label -->
+          <p class="text-[10px] text-food-muted text-center mb-2.5">
+            {{ PRESET_PAGES[presetPage].label }}（{{ presetPage + 1 }} / {{ PRESET_PAGES.length }}）
+          </p>
+
+          <!-- Avatar grid -->
+          <div class="grid grid-cols-4 gap-3">
+            <button
+              v-for="preset in PRESET_PAGES[presetPage].presets"
+              :key="preset.id"
+              class="relative rounded-full overflow-hidden border-2 transition-all duration-200 active:scale-95 aspect-square"
+              :class="pendingPresetUrl === preset.url
+                ? 'border-food-caramel shadow-md ring-2 ring-food-caramel/30'
+                : user?.avatar_url === preset.url && !pendingPresetUrl
+                  ? 'border-food-caramel/60'
+                  : 'border-food-border hover:border-food-caramel/60'"
+              :title="preset.label"
+              @click="selectPreset(preset.url)"
+            >
+              <img :src="preset.url" :alt="preset.label" class="w-full h-full object-cover bg-food-beige" loading="lazy" />
+              <!-- Currently saved checkmark (when no pending) -->
+              <div v-if="user?.avatar_url === preset.url && !pendingPresetUrl"
+                class="absolute bottom-0.5 right-0.5 w-4 h-4 bg-food-caramel/80 rounded-full flex items-center justify-center shadow-sm">
+                <svg class="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                </svg>
+              </div>
+            </button>
+          </div>
+
+          <!-- Confirm / Cancel (shown only when pending preset ≠ current saved) -->
+          <div
+            v-if="pendingPresetUrl && pendingPresetUrl !== user?.avatar_url"
+            class="flex gap-2 mt-3"
+          >
+            <button
+              class="flex-1 py-2 rounded-xl bg-food-beige text-food-muted text-xs font-bold hover:text-food-brown transition active:scale-95"
+              @click="cancelPreset"
+            >取消</button>
+            <button
+              class="flex-1 py-2 rounded-xl bg-food-caramel text-white text-xs font-bold hover:bg-food-orange transition active:scale-95 flex items-center justify-center gap-1.5 disabled:opacity-60"
+              :disabled="presetSaving"
+              @click="savePreset"
+            >
+              <svg v-if="presetSaving" class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+              </svg>
+              {{ presetSaving ? '儲存中…' : '儲存頭像' }}
+            </button>
+          </div>
+        </div>
 
         <!-- Name + level -->
         <div class="text-center w-full">
@@ -307,6 +389,83 @@ const xpProgress = computed(() =>
   Math.min(100, Math.round((currentLevelXp.value / nextLevelXp.value) * 100))
 )
 
+// ── 預設頭像 ───────────────────────────────────────────────────
+const PRESET_PAGES = [
+  {
+    label: '趣味表情',
+    presets: [
+      { id: 'e1', label: '開心',     url: 'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Loki' },
+      { id: 'e2', label: '酷酷',     url: 'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Salem' },
+      { id: 'e3', label: '呆萌',     url: 'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Pepper' },
+      { id: 'e4', label: '俏皮',     url: 'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Snuggles' },
+      { id: 'e5', label: '搞怪',     url: 'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Whiskers' },
+      { id: 'e6', label: '微笑',     url: 'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Cleo' },
+      { id: 'e7', label: '淡定',     url: 'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Mochi' },
+      { id: 'e8', label: '驚訝',     url: 'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Bubbles' },
+    ],
+  },
+  {
+    label: '機器人',
+    presets: [
+      { id: 'b1', label: '鐵甲A',    url: 'https://api.dicebear.com/9.x/bottts/svg?seed=R2D2' },
+      { id: 'b2', label: '鐵甲B',    url: 'https://api.dicebear.com/9.x/bottts/svg?seed=Zeta' },
+      { id: 'b3', label: '鐵甲C',    url: 'https://api.dicebear.com/9.x/bottts/svg?seed=Nova' },
+      { id: 'b4', label: '鐵甲D',    url: 'https://api.dicebear.com/9.x/bottts/svg?seed=Orion' },
+      { id: 'b5', label: '鐵甲E',    url: 'https://api.dicebear.com/9.x/bottts/svg?seed=Titan' },
+      { id: 'b6', label: '鐵甲F',    url: 'https://api.dicebear.com/9.x/bottts/svg?seed=Cosmo' },
+      { id: 'b7', label: '鐵甲G',    url: 'https://api.dicebear.com/9.x/bottts/svg?seed=Atlas' },
+      { id: 'b8', label: '鐵甲H',    url: 'https://api.dicebear.com/9.x/bottts/svg?seed=Nexus' },
+    ],
+  },
+  {
+    label: '像素風格',
+    presets: [
+      { id: 'p1', label: '勇者',     url: 'https://api.dicebear.com/9.x/pixel-art/svg?seed=Hero' },
+      { id: 'p2', label: '騎士',     url: 'https://api.dicebear.com/9.x/pixel-art/svg?seed=Knight' },
+      { id: 'p3', label: '法師',     url: 'https://api.dicebear.com/9.x/pixel-art/svg?seed=Wizard' },
+      { id: 'p4', label: '遊俠',     url: 'https://api.dicebear.com/9.x/pixel-art/svg?seed=Ranger' },
+      { id: 'p5', label: '魔法師',   url: 'https://api.dicebear.com/9.x/pixel-art/svg?seed=Mage' },
+      { id: 'p6', label: '盜賊',     url: 'https://api.dicebear.com/9.x/pixel-art/svg?seed=Rogue' },
+      { id: 'p7', label: '聖騎士',   url: 'https://api.dicebear.com/9.x/pixel-art/svg?seed=Paladin' },
+      { id: 'p8', label: '吟遊詩人', url: 'https://api.dicebear.com/9.x/pixel-art/svg?seed=Bard' },
+    ],
+  },
+] as const
+
+const presetPage       = ref(0)
+const pendingPresetUrl = ref<string | null>(null)
+const presetSaving     = ref(false)
+
+function selectPreset(url: string): void {
+  pendingPresetUrl.value = pendingPresetUrl.value === url ? null : url
+  if (pendingPresetUrl.value && avatarFile.value) cancelAvatarUpload()
+}
+
+function cancelPreset(): void {
+  pendingPresetUrl.value = null
+}
+
+async function savePreset(): Promise<void> {
+  if (!pendingPresetUrl.value || presetSaving.value) return
+  presetSaving.value = true
+  avatarError.value = ''; avatarSuccess.value = ''
+  try {
+    const res = await $fetch<{ avatar_url: string }>('/api/profile/avatar-preset', {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token.value ?? ''}` },
+      body: { avatar_url: pendingPresetUrl.value },
+    })
+    if (user.value) user.value.avatar_url = res.avatar_url
+    pendingPresetUrl.value = null
+    avatarSuccess.value = '✅ 頭像已更新！'
+    setTimeout(() => { avatarSuccess.value = '' }, 2000)
+  } catch (err: any) {
+    avatarError.value = err.data?.statusMessage ?? '套用失敗，請稍後再試'
+  } finally {
+    presetSaving.value = false
+  }
+}
+
 // ── 頭像 ──────────────────────────────────────────────────────
 const fileInput      = ref<HTMLInputElement | null>(null)
 const avatarPreview  = ref<string | null>(null)
@@ -341,6 +500,7 @@ function handleAvatarSelect(e: Event) {
   if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
   avatarFile.value    = file
   avatarPreview.value = URL.createObjectURL(file)
+  pendingPresetUrl.value = null
 }
 
 function cancelAvatarUpload() {

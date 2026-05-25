@@ -118,7 +118,7 @@
 
     <!-- 新增標記 FAB（右下，在 Leaflet zoom 控制上方）-->
     <button @click="toggleAddMode"
-      :class="addMode ? 'bg-gray-600 hover:bg-gray-700 shadow-gray-400/40' : 'bg-red-500 hover:bg-red-600 shadow-red-400/50'"
+      :class="addMode ? 'bg-gray-600 hover:bg-gray-700 shadow-gray-400/40' : 'bg-food-caramel hover:bg-food-orange shadow-food-caramel/40'"
       class="absolute bottom-25 right-3 z-[1000] w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-white transition hover:scale-110 active:scale-95 select-none"
       :title="addMode ? '取消新增' : '新增標記'">
       <!-- 取消模式：X -->
@@ -131,7 +131,7 @@
           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
           <circle cx="12" cy="9" r="2.6" fill="white" fill-opacity="0.85"/>
         </svg>
-        <span class="absolute -top-2 -right-2 w-4 h-4 bg-white text-red-500 rounded-full text-[9px] font-black flex items-center justify-center leading-none shadow-sm border border-red-100">＋</span>
+        <span class="absolute -top-2 -right-2 w-4 h-4 bg-white text-food-caramel rounded-full text-[9px] font-black flex items-center justify-center leading-none shadow-sm border border-food-border">＋</span>
       </div>
     </button>
 

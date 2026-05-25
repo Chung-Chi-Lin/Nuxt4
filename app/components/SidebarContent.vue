@@ -101,7 +101,7 @@
         <p class="font-bold text-food-brown text-sm mb-3">還沒有其他美食家的標記</p>
         <p class="text-xs text-food-muted leading-relaxed">
           來當頭香吧！<br>點擊右下角
-          <span class="inline-flex items-center gap-0.5 font-bold text-red-500">
+          <span class="inline-flex items-center gap-0.5 font-bold text-food-caramel">
             <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 inline" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.6" fill="white" fill-opacity="0.85"/></svg>
             圖釘
           </span>
