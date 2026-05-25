@@ -73,9 +73,9 @@
       </div>
     </Transition>
 
-    <!-- Dog button -->
+    <!-- Dog button（桌機固定右下，手機藏起來改由 sidebar 觸發）-->
     <button
-      class="fixed bottom-5 right-5 z-[9997] w-14 h-14 rounded-full bg-food-caramel shadow-lg flex items-center justify-center text-3xl transition-all duration-200 hover:scale-110 active:scale-95 select-none"
+      class="hidden md:flex fixed bottom-5 right-5 z-[9997] w-14 h-14 rounded-full bg-food-caramel shadow-lg items-center justify-center text-3xl transition-all duration-200 hover:scale-110 active:scale-95 select-none"
       :class="open ? 'rotate-12 shadow-xl' : ''"
       :aria-label="open ? '關閉小助手' : '開啟小助手'"
       @click="toggle"
@@ -140,6 +140,8 @@ function toggle(): void {
   open.value = !open.value
   if (!open.value) selected.value = null
 }
+
+defineExpose({ toggle })
 </script>
 
 <style scoped>

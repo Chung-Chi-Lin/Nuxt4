@@ -73,12 +73,66 @@
       </div>
     </Transition>
 
+    <!-- 地圖樣式切換器（左下）-->
+    <div class="style-switcher absolute bottom-3 left-3 z-[1000]">
+      <button
+        @click="showStylePicker = !showStylePicker"
+        class="bg-food-surface border border-food-border rounded-xl px-3 py-2 shadow-md text-xs font-bold text-food-brown hover:bg-food-beige transition flex items-center gap-1.5"
+      >
+        <span>{{ TILE_STYLES.find(s => s.id === currentStyleId)?.icon }}</span>
+        <span class="hidden sm:inline">地圖樣式</span>
+      </button>
+
+      <Transition
+        enter-from-class="opacity-0 translate-y-1"
+        leave-to-class="opacity-0 translate-y-1"
+        enter-active-class="transition duration-150"
+        leave-active-class="transition duration-150"
+      >
+        <div v-if="showStylePicker"
+          class="absolute bottom-full mb-2 left-0 bg-food-surface border border-food-border rounded-2xl shadow-xl overflow-hidden w-52"
+        >
+          <div class="px-3 py-2 border-b border-food-border">
+            <p class="text-[10px] font-bold text-food-muted tracking-wider uppercase">地圖樣式</p>
+          </div>
+          <div class="py-1">
+            <button
+              v-for="style in TILE_STYLES" :key="style.id"
+              @click="setTileStyle(style.id)"
+              class="w-full px-3 py-2.5 text-left transition flex items-center gap-2.5"
+              :class="currentStyleId === style.id
+                ? 'bg-food-beige'
+                : 'hover:bg-food-beige/60'"
+            >
+              <span class="text-base shrink-0">{{ style.icon }}</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-bold text-food-brown">{{ style.name }}</p>
+                <p class="text-[10px] text-food-muted leading-tight">{{ style.desc }}</p>
+              </div>
+              <span v-if="currentStyleId === style.id" class="text-food-caramel text-xs font-black shrink-0">✓</span>
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </div>
+
     <!-- 新增標記 FAB（右下，在 Leaflet zoom 控制上方）-->
     <button @click="toggleAddMode"
-      :class="addMode ? 'bg-food-red hover:bg-red-600' : 'bg-food-caramel hover:bg-food-orange'"
-      class="absolute bottom-25 right-3 z-[1000] w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white text-2xl font-bold transition hover:scale-105 active:scale-95 select-none"
+      :class="addMode ? 'bg-gray-600 hover:bg-gray-700 shadow-gray-400/40' : 'bg-red-500 hover:bg-red-600 shadow-red-400/50'"
+      class="absolute bottom-25 right-3 z-[1000] w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-white transition hover:scale-110 active:scale-95 select-none"
       :title="addMode ? '取消新增' : '新增標記'">
-      {{ addMode ? '✕' : '＋' }}
+      <!-- 取消模式：X -->
+      <svg v-if="addMode" viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <path d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+      <!-- 正常模式：圖釘 + 加號徽章 -->
+      <div v-else class="relative flex items-center justify-center">
+        <svg viewBox="0 0 24 24" class="w-7 h-7" fill="currentColor">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+          <circle cx="12" cy="9" r="2.6" fill="white" fill-opacity="0.85"/>
+        </svg>
+        <span class="absolute -top-2 -right-2 w-4 h-4 bg-white text-red-500 rounded-full text-[9px] font-black flex items-center justify-center leading-none shadow-sm border border-red-100">＋</span>
+      </div>
     </button>
 
     <!-- 新增標記 Modal -->
@@ -163,14 +217,90 @@ const emit = defineEmits<{
   'center-changed': [lat: number, lng: number]
 }>()
 
+// ── 地圖樣式 ─────────────────────────────────────────────────
+const TILE_STYLES = [
+  {
+    id: 'voyager',
+    name: 'Voyager',
+    icon: '✨',
+    desc: '乾淨有顏色，低縮放無門牌（預設）',
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 19,
+  },
+  {
+    id: 'positron',
+    name: 'Positron 淡色',
+    icon: '⬜',
+    desc: '白底灰路，標記最突出',
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 19,
+  },
+  {
+    id: 'dark',
+    name: 'Dark Matter',
+    icon: '⬛',
+    desc: '黑底白線，emoji 最醒目',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 19,
+  },
+  {
+    id: 'nolabels',
+    name: '無標籤極簡',
+    icon: '🔲',
+    desc: '只有道路輪廓，無任何文字',
+    url: 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 19,
+  },
+  {
+    id: 'esri',
+    name: 'Esri Street',
+    icon: '🧡',
+    desc: '橘色道路，GIS 專業風格',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© <a href="https://www.esri.com/">Esri</a>',
+    maxZoom: 19,
+  },
+  {
+    id: 'osm',
+    name: 'OSM 標準',
+    icon: '🗺️',
+    desc: '顯示門牌與建築細節',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
+    maxZoom: 19,
+  },
+] as const
+
+type TileStyleId = typeof TILE_STYLES[number]['id']
+
+const currentStyleId  = ref<TileStyleId>('voyager')
+const showStylePicker = ref(false)
+
 // ── Leaflet ──────────────────────────────────────────────────
 const mapEl = ref<HTMLElement | null>(null)
 let L: any = null
 let leafletMap: any = null
+let tileLayerInstance: any = null
 let demoSpotLayer: any = null
 let dbSpotLayer: any = null
 let tempMarker: any = null
 let userMarker: any = null
+
+function setTileStyle(id: TileStyleId) {
+  const style = TILE_STYLES.find(s => s.id === id)
+  if (!style || !leafletMap) return
+  if (tileLayerInstance) tileLayerInstance.remove()
+  tileLayerInstance = L.tileLayer(style.url, {
+    attribution: style.attribution,
+    maxZoom: style.maxZoom,
+  }).addTo(leafletMap)
+  currentStyleId.value = id
+  showStylePicker.value = false
+}
 
 // ── 搜尋 ──────────────────────────────────────────────────────
 const searchQuery   = ref('')
@@ -205,10 +335,14 @@ const writingCommentSpot = ref<{ id: string; name: string } | null>(null)
 
 // ── 關閉搜尋結果（點外部）──────────────────────────────────
 function onClickOutside(e: MouseEvent) {
-  const el = document.querySelector('.search-overlay')
-  if (el && !el.contains(e.target as Node)) {
+  const searchEl = document.querySelector('.search-overlay')
+  if (searchEl && !searchEl.contains(e.target as Node)) {
     showResults.value = false
     showGmapsInput.value = false
+  }
+  const styleEl = document.querySelector('.style-switcher')
+  if (styleEl && !styleEl.contains(e.target as Node)) {
+    showStylePicker.value = false
   }
 }
 
@@ -223,9 +357,10 @@ onMounted(async () => {
     : [25.0380, 121.5420]
   leafletMap = L.map(mapEl.value, { zoomControl: false }).setView(initCenter, props.flyTo ? 16 : 13)
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
-    maxZoom: 19,
+  const defaultStyle = TILE_STYLES.find(s => s.id === 'voyager')!
+  tileLayerInstance = L.tileLayer(defaultStyle.url, {
+    attribution: defaultStyle.attribution,
+    maxZoom: defaultStyle.maxZoom,
   }).addTo(leafletMap)
 
   L.control.zoom({ position: 'bottomright' }).addTo(leafletMap)
@@ -488,6 +623,16 @@ function placeTempMarker(lat: number, lng: number, name: string) {
     }
   })
 
+  // popup 關閉但 modal 沒開 → 表示使用者取消，移除圖釘
+  tempMarker.on('popupclose', () => {
+    setTimeout(() => {
+      if (!showAddModal.value && tempMarker) {
+        tempMarker.remove()
+        tempMarker = null
+      }
+    }, 50)
+  })
+
   tempMarker.openPopup()
 
   // Reverse geocode to verify if a known POI exists at this location
@@ -610,5 +755,6 @@ function onModalCancel() {
   addPoiInfo.value = null
   addAddress.value = ''
   if (leafletMap) leafletMap.getContainer().style.cursor = ''
+  if (tempMarker) { tempMarker.remove(); tempMarker = null }
 }
 </script>

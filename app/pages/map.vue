@@ -17,8 +17,18 @@
         <WeatherMarquee />
       </div>
 
+      <!-- Mobile: sidebar toggle -->
+      <button
+        class="md:hidden ml-auto mr-1 w-9 h-9 rounded-xl border border-food-border flex items-center justify-center text-base transition active:scale-95"
+        :class="sidebarOpen ? 'bg-food-caramel text-white border-food-caramel' : 'bg-food-beige text-food-brown hover:bg-food-cream'"
+        :title="sidebarOpen ? '關閉清單' : '美食清單'"
+        @click="sidebarOpen = !sidebarOpen"
+      >
+        {{ sidebarOpen ? '✕' : '🍜' }}
+      </button>
+
       <!-- Right: User -->
-      <div class="shrink-0 flex items-center gap-2 sm:gap-3 ml-auto">
+      <div class="shrink-0 flex items-center gap-2 sm:gap-3 md:ml-auto">
         <NuxtLink to="/profile" class="flex items-center gap-2 group">
           <div class="relative shrink-0">
             <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-food-beige border-2 border-food-border overflow-hidden group-hover:border-food-caramel transition">
@@ -80,6 +90,7 @@
             @select="handleSpotSelect"
             @view-comments="onSidebarViewComments"
             @write-comment="onSidebarWriteComment"
+            @toggle-bot="toggleHelpBot"
           />
         </div>
       </aside>
@@ -107,8 +118,12 @@
           class="absolute bottom-0 left-0 right-0 bg-food-surface rounded-t-2xl border-t border-food-border transition-transform duration-300 max-h-[65vh] overflow-y-auto"
           :class="sidebarOpen ? 'translate-y-0' : 'translate-y-full'"
         >
-          <div class="flex justify-center pt-3 pb-1">
-            <div class="w-10 h-1 rounded-full bg-food-border"></div>
+          <div class="relative flex items-center justify-center pt-3 pb-1 px-4">
+            <div class="w-10 h-1 rounded-full bg-food-border" />
+            <button
+              class="absolute right-3 w-7 h-7 rounded-full flex items-center justify-center text-food-muted hover:text-food-brown hover:bg-food-beige transition text-sm font-bold"
+              @click="sidebarOpen = false"
+            >✕</button>
           </div>
           <SidebarContent
             :spots="sidebarSpots"
@@ -117,22 +132,14 @@
             @select="handleSpotSelect"
             @view-comments="onSidebarViewComments"
             @write-comment="onSidebarWriteComment"
+            @toggle-bot="toggleHelpBot"
           />
         </div>
       </div>
     </div>
 
-    <!-- Mobile FAB: open sidebar -->
-    <button
-      v-if="!sidebarOpen"
-      class="md:hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-20 bg-food-caramel text-white px-5 py-3 rounded-full shadow-lg font-bold text-sm flex items-center gap-2 active:scale-95 transition"
-      @click="sidebarOpen = true"
-    >
-      <span>🍜</span> 美食清單
-    </button>
-
     <LocationPermissionModal :open="show" @allow="allow" @deny="deny" />
-    <HelpBot />
+    <HelpBot ref="helpBotRef" />
 
     <!-- 查看評論 Modal（由右側小卡觸發）-->
     <SpotCommentsModal
@@ -186,6 +193,9 @@ const sidebarViewingSpot  = ref<{ id: string; name: string } | null>(null)
 const sidebarWritingSpot  = ref<{ id: string; name: string } | null>(null)
 
 const { show, userLocation, requestIfNeeded, allow, deny } = useGeoModal()
+
+const helpBotRef = ref<{ toggle: () => void } | null>(null)
+function toggleHelpBot() { helpBotRef.value?.toggle() }
 
 const queryCenter = computed<GeoLocation | null>(() => {
   const lat = parseFloat(route.query.lat as string)

@@ -5,9 +5,17 @@
     <div class="px-4 pt-4 pb-3 shrink-0">
       <div class="flex items-center justify-between mb-2.5">
         <p class="text-xs font-bold text-food-muted tracking-wider uppercase">📍 精選地點</p>
-        <span v-if="!loading && spots.length" class="text-[10px] text-food-muted tabular-nums">
-          最近 {{ spots.length }} 個
-        </span>
+        <div class="flex items-center gap-2">
+          <!-- 波吉小幫手（手機限定，桌機有固定按鈕）-->
+          <button
+            class="md:hidden w-7 h-7 rounded-full bg-food-caramel flex items-center justify-center text-sm shadow-sm hover:bg-food-orange transition active:scale-95"
+            title="波吉小助手"
+            @click="emit('toggle-bot')"
+          >🐶</button>
+          <span v-if="!loading && spots.length" class="text-[10px] text-food-muted tabular-nums">
+            最近 {{ spots.length }} 個
+          </span>
+        </div>
       </div>
       <div class="flex items-center gap-2 bg-food-input border border-food-border rounded-xl px-3 py-2.5">
         <span class="text-food-muted shrink-0 text-sm">🔍</span>
@@ -92,7 +100,12 @@
         <p class="font-bold text-food-brown text-sm mb-1.5">您搜尋的地點</p>
         <p class="font-bold text-food-brown text-sm mb-3">還沒有其他美食家的標記</p>
         <p class="text-xs text-food-muted leading-relaxed">
-          來當頭香吧！<br>點擊右下角 <span class="font-bold text-food-caramel">＋</span> 新增第一個標記
+          來當頭香吧！<br>點擊右下角
+          <span class="inline-flex items-center gap-0.5 font-bold text-red-500">
+            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 inline" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.6" fill="white" fill-opacity="0.85"/></svg>
+            圖釘
+          </span>
+          新增第一個標記
         </p>
       </div>
 
@@ -131,6 +144,7 @@ const emit = defineEmits<{
   select:           [spot: SidebarSpot]
   'view-comments':  [payload: { id: string; name: string }]
   'write-comment':  [payload: { id: string; name: string }]
+  'toggle-bot':     []
 }>()
 
 const search = ref('')
