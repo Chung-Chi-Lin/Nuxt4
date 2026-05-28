@@ -11,7 +11,10 @@
 
     <div class="max-w-3xl mx-auto px-4 py-6 space-y-4">
 
-      <!-- Tabs -->
+      <!-- 頁面導航 -->
+      <AdminNav :pending-spot="spotPendingCount" :pending-comment="commentPendingCount" />
+
+      <!-- 區塊內 Tabs（回報管理子分類） -->
       <div class="flex gap-1 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
         <button
           v-for="tab in tabs" :key="tab.key"

@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
 
   const { data: spots, error } = await admin
     .from('spots')
-    .select('id, user_id, name, emoji, lat, lng, tags, notes, is_public, photo_urls, xp_earned, created_at, address')
+    .select('id, user_id, name, emoji, lat, lng, tags, notes, is_public, photo_urls, xp_earned, created_at, address, category')
     .gte('lat', south).lte('lat', north)
     .gte('lng', west).lte('lng', east)
     .or(`is_public.eq.true,user_id.eq.${user.id}`)

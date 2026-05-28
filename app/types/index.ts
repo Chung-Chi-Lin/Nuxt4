@@ -26,7 +26,10 @@ export interface DbSpot {
   xp_earned: number
   created_at: string
   address?: string
+  category: string
 }
+
+export type SidebarSpot = DbSpot & { distance: number }
 
 export interface SpotComment {
   id: string

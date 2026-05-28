@@ -10,6 +10,7 @@
           <h3 class="font-bold text-food-brown text-base">✏️ 評論</h3>
           <button
             class="w-7 h-7 rounded-full flex items-center justify-center text-food-muted hover:text-food-brown hover:bg-food-border/50 transition text-sm font-bold"
+            aria-label="關閉"
             @click="emit('close')"
           >✕</button>
         </div>

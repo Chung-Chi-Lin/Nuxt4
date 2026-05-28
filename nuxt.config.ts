@@ -14,6 +14,7 @@ export default defineNuxtConfig({
   css: [
     '~/assets/css/main.css',
     'leaflet/dist/leaflet.css',
+    'cropperjs/dist/cropper.css',
   ],
   vite: {
     plugins: [tailwindcss()],
@@ -21,6 +22,8 @@ export default defineNuxtConfig({
   runtimeConfig: {
     // Server only → NUXT_SUPABASE_SECRET_KEY
     supabaseSecretKey: '',
+    // Server only → NUXT_GROQ_API_KEY
+    groqApiKey: '',
     public: {
       // Client + Server → NUXT_PUBLIC_SUPABASE_URL / NUXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
       supabaseUrl: '',

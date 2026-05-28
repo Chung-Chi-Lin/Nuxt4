@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
   if (!id) throw createError({ statusCode: 400, statusMessage: '缺少 ID' })
 
-  const { name, emoji, tags, notes, is_public, photo_urls } = await readBody(event)
+  const { name, emoji, tags, notes, is_public, photo_urls, category } = await readBody(event)
 
   if (!name?.trim()) throw createError({ statusCode: 400, statusMessage: '請填寫地點名稱' })
 
@@ -23,6 +23,7 @@ export default defineEventHandler(async (event) => {
       notes:      notes?.trim() || '',
       is_public:  Boolean(is_public),
       photo_urls: Array.isArray(photo_urls) ? photo_urls.slice(0, 3) : [],
+      ...(category ? { category } : {}),
     })
     .eq('id', id)
     .eq('user_id', user.id)

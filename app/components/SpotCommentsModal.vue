@@ -13,6 +13,7 @@
           </div>
           <button
             class="ml-3 w-7 h-7 rounded-full flex items-center justify-center text-food-muted hover:text-food-brown hover:bg-food-border/50 transition text-sm font-bold shrink-0"
+            aria-label="關閉"
             @click="emit('close')"
           >✕</button>
         </div>
@@ -121,7 +122,8 @@ async function fetchComments(): Promise<void> {
       { headers: { Authorization: `Bearer ${props.token}` } }
     )
     comments.value = data
-  } catch {
+  } catch (err: any) {
+    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
     fetchError.value = '載入評論失敗，請稍後再試'
   } finally {
     loading.value = false
@@ -139,7 +141,8 @@ async function deleteComment(id: string): Promise<void> {
       headers: { Authorization: `Bearer ${props.token}` },
     })
     comments.value = comments.value.filter(c => c.id !== id)
-  } catch {
+  } catch (err: any) {
+    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
     // silently fail — user sees no change
   } finally {
     deletingId.value = null

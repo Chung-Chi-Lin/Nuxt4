@@ -13,29 +13,22 @@
       </div>
 
       <!-- Center: Weather marquee -->
-      <div class="hidden md:flex flex-1 justify-center min-w-0 overflow-hidden px-3">
-        <WeatherMarquee />
+      <div class="hidden md:flex flex-1 justify-center items-center min-w-0 px-4">
+        <div class="w-full max-w-xs lg:max-w-xl overflow-hidden">
+          <WeatherMarquee />
+        </div>
       </div>
 
-      <!-- Mobile: sidebar toggle -->
-      <button
-        class="md:hidden ml-auto mr-1 w-9 h-9 rounded-xl border border-food-border flex items-center justify-center text-base transition active:scale-95"
-        :class="sidebarOpen ? 'bg-food-caramel text-white border-food-caramel' : 'bg-food-beige text-food-brown hover:bg-food-cream'"
-        :title="sidebarOpen ? '關閉清單' : '美食清單'"
-        @click="sidebarOpen = !sidebarOpen"
-      >
-        {{ sidebarOpen ? '✕' : '🍜' }}
-      </button>
 
       <!-- Right: User -->
-      <div class="shrink-0 flex items-center gap-2 sm:gap-3 md:ml-auto">
+      <div class="shrink-0 flex items-center gap-2 sm:gap-3 ml-auto">
         <NuxtLink to="/profile" class="flex items-center gap-2 group">
           <div class="relative shrink-0">
             <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-food-beige border-2 border-food-border overflow-hidden group-hover:border-food-caramel transition">
               <img v-if="user?.avatar_url" :src="user.avatar_url" :alt="user?.username" class="w-full h-full object-cover" />
               <span v-else class="flex items-center justify-center w-full h-full text-base sm:text-lg select-none">👤</span>
             </div>
-            <UserLevelBadge v-if="user?.user_level" :level="user.user_level" :size="20"
+            <UserLevelBadge v-if="user?.user_level" :level="user.user_level" :size="26"
               class="absolute -bottom-1.5 -right-1.5 drop-shadow" />
           </div>
           <span v-if="user?.username"
@@ -64,8 +57,11 @@
             :token="token ?? ''"
             :user-id="user?.id ?? ''"
             :fly-to="effectiveFlyTo"
+            :bottom-inset="mobileBottomInset"
+            :category-filters="sidebarCategories"
             @spots-updated="onSpotsUpdated"
             @center-changed="onCenterChanged"
+            @xp-gained="onXpGained"
           />
         </ClientOnly>
         <ClientOnly>
@@ -91,6 +87,7 @@
             @view-comments="onSidebarViewComments"
             @write-comment="onSidebarWriteComment"
             @toggle-bot="toggleHelpBot"
+            @category-changed="sidebarCategories = $event"
           />
         </div>
       </aside>
@@ -104,42 +101,52 @@
         <span class="text-food-caramel font-bold text-sm">{{ sidebarOpen ? '›' : '‹' }}</span>
       </button>
 
-      <!-- ── Mobile: bottom sheet ── -->
+      <!-- ── Mobile: overlay ── -->
       <div
-        class="md:hidden fixed inset-0 z-30 pointer-events-none"
-        :class="sidebarOpen ? 'pointer-events-auto' : ''"
+        class="md:hidden fixed inset-0 z-[29] bg-black/30 transition-opacity duration-300"
+        :class="sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'"
+        @click="sidebarOpen = false"
+      />
+
+      <!-- ── Mobile: bottom sheet with persistent tab ── -->
+      <div
+        class="md:hidden fixed bottom-0 inset-x-0 z-[9990] transition-transform duration-300"
+        :style="sidebarOpen ? {} : { transform: 'translateY(calc(100% - 3rem))' }"
       >
-        <div
-          class="absolute inset-0 bg-black/30 transition-opacity duration-300"
-          :class="sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'"
-          @click="sidebarOpen = false"
-        />
-        <div
-          class="absolute bottom-0 left-0 right-0 bg-food-surface rounded-t-2xl border-t border-food-border transition-transform duration-300 max-h-[65vh] overflow-y-auto"
-          :class="sidebarOpen ? 'translate-y-0' : 'translate-y-full'"
-        >
-          <div class="relative flex items-center justify-center pt-3 pb-1 px-4">
-            <div class="w-10 h-1 rounded-full bg-food-border" />
-            <button
-              class="absolute right-3 w-7 h-7 rounded-full flex items-center justify-center text-food-muted hover:text-food-brown hover:bg-food-beige transition text-sm font-bold"
-              @click="sidebarOpen = false"
-            >✕</button>
+        <div class="bg-food-surface rounded-t-2xl border-t border-food-border shadow-2xl flex flex-col" style="max-height: 65dvh">
+
+          <!-- 頁簽 handle（永遠可見） -->
+          <div
+            class="flex-shrink-0 h-12 flex items-center px-4 cursor-pointer relative select-none"
+            @click="sidebarOpen = !sidebarOpen"
+          >
+            <div class="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-food-border" />
+            <span class="text-sm mt-1">🍜</span>
+            <span class="text-xs font-bold text-food-brown ml-1.5 mt-1">美食清單</span>
+            <span v-if="!sidebarOpen && sidebarSpots.length" class="ml-1.5 mt-1 text-[10px] text-food-muted tabular-nums">{{ sidebarSpots.length }} 個</span>
+            <span class="ml-auto text-[10px] text-food-muted mt-1">{{ sidebarOpen ? '▼' : '▲' }}</span>
           </div>
-          <SidebarContent
-            :spots="sidebarSpots"
-            :loading="spotsLoading"
-            :current-user-id="user?.id ?? ''"
-            @select="handleSpotSelect"
-            @view-comments="onSidebarViewComments"
-            @write-comment="onSidebarWriteComment"
-            @toggle-bot="toggleHelpBot"
-          />
+
+          <!-- 展開後的內容 -->
+          <div v-show="sidebarOpen" class="flex-1 overflow-y-auto min-h-0">
+            <SidebarContent
+              :spots="sidebarSpots"
+              :loading="spotsLoading"
+              :current-user-id="user?.id ?? ''"
+              @select="handleSpotSelect"
+              @view-comments="onSidebarViewComments"
+              @write-comment="onSidebarWriteComment"
+              @toggle-bot="toggleHelpBot"
+              @category-changed="sidebarCategories = $event"
+            />
+          </div>
+
         </div>
       </div>
     </div>
 
     <LocationPermissionModal :open="show" @allow="allow" @deny="deny" />
-    <HelpBot ref="helpBotRef" />
+    <HelpBot ref="helpBotRef" :spots="sidebarSpots" :map-center="mapCenter" />
 
     <!-- 查看評論 Modal（由右側小卡觸發）-->
     <SpotCommentsModal
@@ -164,7 +171,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { Spot, DbSpot, GeoLocation, AuthUser } from '~/types'
+import type { Spot, DbSpot, GeoLocation, AuthUser, SidebarSpot } from '~/types'
 import { useGeoModal } from '~/composables/useGeoModal'
 
 definePageMeta({ middleware: 'auth' })
@@ -191,6 +198,7 @@ const mapCenter           = ref<GeoLocation>({ lat: 25.0380, lng: 121.5420 })
 const spots: Spot[]       = []
 const sidebarViewingSpot  = ref<{ id: string; name: string } | null>(null)
 const sidebarWritingSpot  = ref<{ id: string; name: string } | null>(null)
+const sidebarCategories   = ref<string[]>(['food'])
 
 const { show, userLocation, requestIfNeeded, allow, deny } = useGeoModal()
 
@@ -205,9 +213,20 @@ const queryCenter = computed<GeoLocation | null>(() => {
 
 const effectiveFlyTo = computed(() => queryCenter.value ?? userLocation.value)
 
+const isMobile = ref(false)
+
+const mobileBottomInset = computed<string | undefined>(() =>
+  isMobile.value ? '3rem' : undefined
+)
+
 onMounted(() => {
+  isMobile.value = window.innerWidth < 768
   if (window.innerWidth >= 768) sidebarOpen.value = true
   if (!queryCenter.value) requestIfNeeded()
+
+  const onResize = () => { isMobile.value = window.innerWidth < 768 }
+  window.addEventListener('resize', onResize, { passive: true })
+  onUnmounted(() => window.removeEventListener('resize', onResize))
 })
 
 const { data, error } = await useFetch<{ user: AuthUser }>('/api/auth/me', {
@@ -235,7 +254,7 @@ const sidebarSpots = computed(() =>
     .slice(0, 10)
 )
 
-function handleSpotSelect(spot: GeoLocation): void {
+function handleSpotSelect(spot: SidebarSpot): void {
   selectedSpot.value = spot
   if (window.innerWidth < 768) sidebarOpen.value = false
 }
@@ -251,5 +270,11 @@ function onSidebarViewComments(payload: { id: string; name: string }): void {
 
 function onSidebarWriteComment(payload: { id: string; name: string }): void {
   sidebarWritingSpot.value = payload
+}
+
+function onXpGained(payload: { newXp: number; newLevel: number; leveledUp: boolean }): void {
+  if (data.value?.user) {
+    data.value.user.user_level = payload.newLevel
+  }
 }
 </script>

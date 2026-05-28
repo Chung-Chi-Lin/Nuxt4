@@ -50,7 +50,7 @@
 
         <!-- Pending upload actions -->
         <div v-if="avatarFile && !avatarUploading" class="flex flex-col items-center gap-2">
-          <p class="text-xs text-food-muted">{{ avatarFile.name }}</p>
+          <p class="text-xs text-food-muted">✂️ 已裁切，滿意後按「儲存頭像」</p>
           <div class="flex gap-2">
             <button @click="uploadAvatar"
               class="px-4 py-1.5 rounded-lg bg-food-caramel text-white text-xs font-bold hover:bg-food-orange transition active:scale-95">
@@ -69,12 +69,28 @@
           建議上傳正方形圖片，至少 200×200 px<br>格式：JPG / PNG / WebP，最大 2 MB
         </p>
 
-        <!-- Preset avatars -->
-        <div class="w-full pt-3.5 border-t border-food-border">
+        <!-- Preset avatars toggle button -->
+        <button
+          class="w-full py-2 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+          :class="showPresetPicker
+            ? 'border-food-caramel/60 text-food-caramel bg-food-beige'
+            : 'border-food-border text-food-caramel hover:border-food-caramel hover:bg-food-beige'"
+          @click="showPresetPicker = !showPresetPicker; if (!showPresetPicker) cancelPreset()"
+        >
+          {{ showPresetPicker ? '✕ 收起' : '🎨 選擇預設頭像' }}
+          <svg v-if="!showPresetPicker" class="w-3 h-3 opacity-50" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </button>
 
-          <!-- Header: label + page navigation -->
+        <!-- Preset picker (expandable) -->
+        <div v-show="showPresetPicker" class="w-full pt-1">
+
+          <!-- Page navigation -->
           <div class="flex items-center justify-between mb-2.5">
-            <p class="text-[11px] font-bold text-food-muted tracking-wider uppercase">或選擇預設頭像</p>
+            <p class="text-[10px] text-food-muted">
+              {{ PRESET_PAGES[presetPage].label }}（{{ presetPage + 1 }} / {{ PRESET_PAGES.length }}）
+            </p>
             <div class="flex items-center gap-1.5">
               <button
                 class="w-6 h-6 rounded-full flex items-center justify-center text-food-muted hover:text-food-brown hover:bg-food-beige transition disabled:opacity-30 text-base font-bold"
@@ -98,11 +114,6 @@
             </div>
           </div>
 
-          <!-- Category label -->
-          <p class="text-[10px] text-food-muted text-center mb-2.5">
-            {{ PRESET_PAGES[presetPage].label }}（{{ presetPage + 1 }} / {{ PRESET_PAGES.length }}）
-          </p>
-
           <!-- Avatar grid -->
           <div class="grid grid-cols-4 gap-3">
             <button
@@ -118,7 +129,6 @@
               @click="selectPreset(preset.url)"
             >
               <img :src="preset.url" :alt="preset.label" class="w-full h-full object-cover bg-food-beige" loading="lazy" />
-              <!-- Currently saved checkmark (when no pending) -->
               <div v-if="user?.avatar_url === preset.url && !pendingPresetUrl"
                 class="absolute bottom-0.5 right-0.5 w-4 h-4 bg-food-caramel/80 rounded-full flex items-center justify-center shadow-sm">
                 <svg class="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -128,7 +138,7 @@
             </button>
           </div>
 
-          <!-- Confirm / Cancel (shown only when pending preset ≠ current saved) -->
+          <!-- Confirm / Cancel -->
           <div
             v-if="pendingPresetUrl && pendingPresetUrl !== user?.avatar_url"
             class="flex gap-2 mt-3"
@@ -344,6 +354,14 @@
       </div>
 
     </div>
+
+    <!-- 頭像裁切 Modal -->
+    <AvatarCropModal
+      v-if="showCropModal"
+      :image-src="cropSrc"
+      @confirm="onCropConfirm"
+      @cancel="onCropCancel"
+    />
   </div>
 </template>
 
@@ -432,9 +450,10 @@ const PRESET_PAGES = [
   },
 ] as const
 
-const presetPage       = ref(0)
-const pendingPresetUrl = ref<string | null>(null)
-const presetSaving     = ref(false)
+const presetPage        = ref(0)
+const pendingPresetUrl  = ref<string | null>(null)
+const presetSaving      = ref(false)
+const showPresetPicker  = ref(false)
 
 function selectPreset(url: string): void {
   pendingPresetUrl.value = pendingPresetUrl.value === url ? null : url
@@ -443,6 +462,7 @@ function selectPreset(url: string): void {
 
 function cancelPreset(): void {
   pendingPresetUrl.value = null
+  showPresetPicker.value = false
 }
 
 async function savePreset(): Promise<void> {
@@ -457,9 +477,11 @@ async function savePreset(): Promise<void> {
     })
     if (user.value) user.value.avatar_url = res.avatar_url
     pendingPresetUrl.value = null
+    showPresetPicker.value = false
     avatarSuccess.value = '✅ 頭像已更新！'
     setTimeout(() => { avatarSuccess.value = '' }, 2000)
   } catch (err: any) {
+    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
     avatarError.value = err.data?.statusMessage ?? '套用失敗，請稍後再試'
   } finally {
     presetSaving.value = false
@@ -467,14 +489,21 @@ async function savePreset(): Promise<void> {
 }
 
 // ── 頭像 ──────────────────────────────────────────────────────
-const fileInput      = ref<HTMLInputElement | null>(null)
-const avatarPreview  = ref<string | null>(null)
-const avatarFile     = ref<File | null>(null)
+const fileInput       = ref<HTMLInputElement | null>(null)
+const avatarPreview   = ref<string | null>(null)
+const avatarFile      = ref<File | null>(null)
 const avatarUploading = ref(false)
-const avatarError    = ref('')
-const avatarSuccess  = ref('')
+const avatarError     = ref('')
+const avatarSuccess   = ref('')
 
-onUnmounted(() => { if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value) })
+// 裁切狀態
+const showCropModal = ref(false)
+const cropSrc       = ref('')
+
+onUnmounted(() => {
+  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
+  if (cropSrc.value)       URL.revokeObjectURL(cropSrc.value)
+})
 
 function triggerFileUpload() {
   if (avatarUploading.value) return
@@ -489,18 +518,32 @@ function handleAvatarSelect(e: Event) {
 
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
     avatarError.value = '只接受 JPG、PNG、WebP 格式'
-    input.value = ''
-    return
+    input.value = ''; return
   }
   if (file.size > 2 * 1024 * 1024) {
     avatarError.value = '圖片大小不能超過 2 MB'
-    input.value = ''
-    return
+    input.value = ''; return
   }
-  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
-  avatarFile.value    = file
-  avatarPreview.value = URL.createObjectURL(file)
+
+  // 打開裁切 Modal，不直接使用原圖
+  if (cropSrc.value) URL.revokeObjectURL(cropSrc.value)
+  cropSrc.value = URL.createObjectURL(file)
+  input.value = ''  // 允許同一檔案再次選取
+  showCropModal.value = true
   pendingPresetUrl.value = null
+}
+
+function onCropConfirm(croppedFile: File) {
+  if (cropSrc.value) { URL.revokeObjectURL(cropSrc.value); cropSrc.value = '' }
+  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
+  avatarFile.value    = croppedFile
+  avatarPreview.value = URL.createObjectURL(croppedFile)
+  showCropModal.value = false
+}
+
+function onCropCancel() {
+  if (cropSrc.value) { URL.revokeObjectURL(cropSrc.value); cropSrc.value = '' }
+  showCropModal.value = false
 }
 
 function cancelAvatarUpload() {
@@ -528,6 +571,7 @@ async function uploadAvatar() {
     if (fileInput.value) fileInput.value.value = ''
     avatarSuccess.value = '✅ 頭像已更新！'
   } catch (err: any) {
+    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
     avatarError.value = err.data?.statusMessage ?? '上傳失敗，請稍後再試'
   } finally {
     avatarUploading.value = false
@@ -572,6 +616,7 @@ async function saveUsername() {
     usernameSuccess.value = '✅ 暱稱已更新！'
     setTimeout(() => { editingUsername.value = false; usernameSuccess.value = '' }, 1500)
   } catch (err: any) {
+    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
     usernameError.value = err.data?.statusMessage ?? '更新失敗，請稍後再試'
   } finally {
     usernameLoading.value = false
@@ -642,6 +687,7 @@ async function savePassword() {
     passwordSuccess.value = '✅ 密碼已更新！'
     setTimeout(() => cancelEditPassword(), 1500)
   } catch (err: any) {
+    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
     passwordError.value = err.data?.statusMessage ?? '更新失敗，請稍後再試'
   } finally {
     passwordLoading.value = false

@@ -25,7 +25,7 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
           </svg>
-          <button v-else-if="searchQuery" @click="clearSearch"
+          <button v-else-if="searchQuery" @click="clearSearch" aria-label="清除搜尋"
             class="w-5 h-5 flex items-center justify-center text-food-muted hover:text-food-brown transition shrink-0 text-xs">
             ✕
           </button>
@@ -41,19 +41,20 @@
           </button>
         </div>
 
-        <!-- Google Maps 連結 -->
-        <div class="border-t border-food-border px-3 py-2.5">
-          <button @click="showGmapsInput = !showGmapsInput"
-            class="text-xs text-food-muted hover:text-food-caramel transition flex items-center gap-1.5 w-full">
-            <span>🔗</span>
-            <span>貼上 Google Maps 連結</span>
-            <span class="ml-auto">{{ showGmapsInput ? '▲' : '▼' }}</span>
-          </button>
-          <div v-if="showGmapsInput" class="mt-2 space-y-1.5">
+        <!-- 地圖面板：Google Maps 連結 -->
+        <div class="border-t border-food-border" @click="panelOpen = !panelOpen">
+          <div class="px-3 py-2.5 flex items-center">
+            <span class="text-xs text-food-muted flex items-center gap-1">
+              <span>🔗</span>
+              <span>Google Maps 連結</span>
+            </span>
+            <span class="ml-auto text-food-muted text-xs select-none cursor-pointer">{{ panelOpen ? '▲' : '▼' }}</span>
+          </div>
+          <div v-show="panelOpen" @click.stop class="px-3 pb-2.5 space-y-1.5">
             <div class="flex gap-2">
               <input v-model="gmapsUrl" type="text" placeholder="https://maps.app.goo.gl/..."
                 class="flex-1 px-2.5 py-1.5 rounded-lg bg-food-input border border-food-border text-xs text-food-brown focus:outline-none focus:border-food-caramel min-w-0" />
-              <button @click="parseGmapsLink" :disabled="gmapsLoading"
+              <button @click.stop="parseGmapsLink" :disabled="gmapsLoading"
                 class="px-3 py-1.5 bg-food-caramel text-white text-xs font-bold rounded-lg hover:bg-food-orange disabled:opacity-50 transition shrink-0">
                 {{ gmapsLoading ? '…' : '前往' }}
               </button>
@@ -77,6 +78,7 @@
     <div class="style-switcher absolute bottom-3 left-3 z-[1000]">
       <button
         @click="showStylePicker = !showStylePicker"
+        aria-label="地圖樣式"
         class="bg-food-surface border border-food-border rounded-xl px-3 py-2 shadow-md text-xs font-bold text-food-brown hover:bg-food-beige transition flex items-center gap-1.5"
       >
         <span>{{ TILE_STYLES.find(s => s.id === currentStyleId)?.icon }}</span>
@@ -119,7 +121,9 @@
     <!-- 新增標記 FAB（右下，在 Leaflet zoom 控制上方）-->
     <button @click="toggleAddMode"
       :class="addMode ? 'bg-gray-600 hover:bg-gray-700 shadow-gray-400/40' : 'bg-food-caramel hover:bg-food-orange shadow-food-caramel/40'"
-      class="absolute bottom-25 right-3 z-[1000] w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-white transition hover:scale-110 active:scale-95 select-none"
+      class="absolute right-3 z-[1000] w-14 h-14 rounded-full shadow-xl flex items-center justify-center text-white transition hover:scale-110 active:scale-95 select-none"
+      :style="{ bottom: props.bottomInset ? `calc(${props.bottomInset} + 1rem)` : '1.5rem' }"
+      :aria-label="addMode ? '取消新增' : '新增標記'"
       :title="addMode ? '取消新增' : '新增標記'">
       <!-- 取消模式：X -->
       <svg v-if="addMode" viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
@@ -141,7 +145,6 @@
       :lat="addLatLng.lat"
       :lng="addLatLng.lng"
       :source-name="addModalName"
-      :token="token"
       :poi-info="addPoiInfo"
       :address="addAddress"
       @saved="onSpotSaved"
@@ -159,7 +162,6 @@
     <EditSpotModal
       v-if="editingSpot"
       :spot="editingSpot"
-      :token="token"
       @saved="onSpotEdited"
       @cancel="editingSpot = null"
     />
@@ -195,6 +197,7 @@
 </template>
 
 <script lang="ts" setup>
+import type { Map as LMap, TileLayer, LayerGroup, Marker, CircleMarker } from 'leaflet'
 import type { Spot, DbSpot, GeoLocation } from '~/types'
 
 interface NominatimResult {
@@ -210,11 +213,14 @@ const props = defineProps<{
   token: string
   userId: string
   flyTo?: GeoLocation | null
+  bottomInset?: string
+  categoryFilters: string[]
 }>()
 
 const emit = defineEmits<{
   'spots-updated': [data: { spots: DbSpot[]; loading: boolean }]
   'center-changed': [lat: number, lng: number]
+  'xp-gained':     [payload: { newXp: number; newLevel: number; leveledUp: boolean }]
 }>()
 
 // ── 地圖樣式 ─────────────────────────────────────────────────
@@ -283,12 +289,12 @@ const showStylePicker = ref(false)
 // ── Leaflet ──────────────────────────────────────────────────
 const mapEl = ref<HTMLElement | null>(null)
 let L: any = null
-let leafletMap: any = null
-let tileLayerInstance: any = null
-let demoSpotLayer: any = null
-let dbSpotLayer: any = null
-let tempMarker: any = null
-let userMarker: any = null
+let leafletMap: LMap | null = null
+let tileLayerInstance: TileLayer | null = null
+let demoSpotLayer: LayerGroup | null = null
+let dbSpotLayer: LayerGroup | null = null
+let tempMarker: Marker | null = null
+let userMarker: CircleMarker | null = null
 
 function setTileStyle(id: TileStyleId) {
   const style = TILE_STYLES.find(s => s.id === id)
@@ -309,11 +315,12 @@ const searchLoading = ref(false)
 const showResults   = ref(false)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 
-// ── Google Maps 連結 ────────────────────────────────────────
-const showGmapsInput = ref(true)
-const gmapsUrl       = ref('')
-const gmapsError     = ref('')
-const gmapsLoading   = ref(false)
+// ── 地圖面板 ─────────────────────────────────────────────────
+const panelOpen       = ref(false)
+const allFetchedSpots = ref<DbSpot[]>([])
+const gmapsUrl        = ref('')
+const gmapsError      = ref('')
+const gmapsLoading    = ref(false)
 
 // ── 新增模式 ────────────────────────────────────────────────
 const addMode      = ref(false)
@@ -338,7 +345,7 @@ function onClickOutside(e: MouseEvent) {
   const searchEl = document.querySelector('.search-overlay')
   if (searchEl && !searchEl.contains(e.target as Node)) {
     showResults.value = false
-    showGmapsInput.value = false
+    panelOpen.value   = false
   }
   const styleEl = document.querySelector('.style-switcher')
   if (styleEl && !styleEl.contains(e.target as Node)) {
@@ -363,7 +370,7 @@ onMounted(async () => {
     maxZoom: defaultStyle.maxZoom,
   }).addTo(leafletMap)
 
-  L.control.zoom({ position: 'bottomright' }).addTo(leafletMap)
+  adjustBottomControls()
 
   demoSpotLayer = L.layerGroup().addTo(leafletMap)
   dbSpotLayer   = L.layerGroup().addTo(leafletMap)
@@ -415,6 +422,21 @@ watch(() => props.flyTo, (loc) => {
     .addTo(leafletMap)
 })
 
+watch(() => props.categoryFilters, renderMapMarkers, { deep: true })
+
+// ── 底部控制項偏移（跟手機底部 sheet 聯動）──────────────────
+function adjustBottomControls() {
+  if (!mapEl.value) return
+  const el = mapEl.value.querySelector('.leaflet-bottom') as HTMLElement | null
+  if (!el) return
+  const inset = props.bottomInset
+  el.style.bottom    = inset ?? '0px'
+  el.style.maxHeight = inset ? `calc(100% - ${inset})` : ''
+  el.style.overflowY = 'auto'
+}
+
+watch(() => props.bottomInset, adjustBottomControls)
+
 // ── Demo markers ────────────────────────────────────────────
 function addDemoMarker(spot: Spot) {
   if (!L || !demoSpotLayer) return
@@ -446,15 +468,25 @@ async function fetchViewportSpots() {
       headers: { Authorization: `Bearer ${props.token}` },
       params: { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() },
     })
-    if (!dbSpotLayer) return
-    dbSpotLayer.clearLayers()
-    for (const s of spots) addDbMarker(s)
+    allFetchedSpots.value = spots
+    renderMapMarkers()
 
     emit('spots-updated', { spots, loading: false })
     emit('center-changed', center.lat, center.lng)
-  } catch {
+  } catch (err: any) {
+    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
     emit('spots-updated', { spots: [], loading: false })
   }
+}
+
+function renderMapMarkers() {
+  if (!dbSpotLayer) return
+  dbSpotLayer.clearLayers()
+  const active = props.categoryFilters
+  const toShow = active.length === 0
+    ? allFetchedSpots.value
+    : allFetchedSpots.value.filter(s => active.includes(s.category ?? 'food'))
+  for (const s of toShow) addDbMarker(s)
 }
 
 function addDbMarker(spot: DbSpot) {
@@ -583,8 +615,10 @@ async function confirmDeleteSpot(spot: DbSpot) {
     if (result.xpDeducted > 0) {
       alert(`標記已刪除，已扣除 ${result.xpDeducted} XP。目前 XP：${result.newXp}（Lv.${result.newLevel}）`)
     }
+    emit('xp-gained', { newXp: result.newXp, newLevel: result.newLevel, leveledUp: false })
     await fetchViewportSpots()
-  } catch {
+  } catch (err: any) {
+    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
     alert('刪除失敗，請稍後再試')
   }
 }
@@ -718,8 +752,8 @@ async function parseGmapsLink() {
     leafletMap?.setView([res.lat, res.lng], 17)
     placeTempMarker(res.lat, res.lng, res.name)
     emit('center-changed', res.lat, res.lng)
-    gmapsUrl.value = ''
-    showGmapsInput.value = false
+    gmapsUrl.value  = ''
+    panelOpen.value = false
   } catch (err: any) {
     gmapsError.value = err.data?.statusMessage ?? '解析失敗'
   } finally {
@@ -742,6 +776,7 @@ function onSpotSaved(result: any) {
   addDbMarker(result.spot)
   xpResult.value = result
   showXpModal.value = true
+  emit('xp-gained', { newXp: result.newXp, newLevel: result.newLevel, leveledUp: !!result.leveledUp })
 }
 
 function closeXpModal() {

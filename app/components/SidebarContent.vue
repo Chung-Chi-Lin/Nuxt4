@@ -9,7 +9,7 @@
           <!-- 波吉小幫手（手機限定，桌機有固定按鈕）-->
           <button
             class="md:hidden w-7 h-7 rounded-full bg-food-caramel flex items-center justify-center text-sm shadow-sm hover:bg-food-orange transition active:scale-95"
-            title="波吉小助手"
+            aria-label="波吉小助手"
             @click="emit('toggle-bot')"
           >🐶</button>
           <span v-if="!loading && spots.length" class="text-[10px] text-food-muted tabular-nums">
@@ -21,8 +21,23 @@
         <span class="text-food-muted shrink-0 text-sm">🔍</span>
         <input v-model="search" type="text" placeholder="搜尋名稱、標籤、備註…"
           class="flex-1 bg-transparent text-sm text-food-brown placeholder-food-border focus:outline-none min-w-0" />
-        <button v-if="search" @click="search = ''"
+        <button v-if="search" @click="search = ''" aria-label="清除搜尋"
           class="text-food-muted hover:text-food-brown text-xs transition shrink-0 leading-none">✕</button>
+      </div>
+      <!-- 類型篩選（僅影響側欄） -->
+      <div class="flex flex-wrap gap-1.5 mt-2">
+        <button v-for="cat in SPOT_CATEGORIES" :key="cat.key" type="button"
+          :disabled="isChipDisabled(cat.key)"
+          :title="isLastActive(cat.key) ? '至少需保留一個分類' : undefined"
+          @click="toggleSidebarCategory(cat.key)"
+          :aria-pressed="activeChipKeys.includes(cat.key)"
+          class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition disabled:cursor-not-allowed disabled:opacity-80"
+          :class="activeChipKeys.includes(cat.key)
+            ? 'bg-food-caramel text-white border-food-caramel'
+            : 'bg-food-beige text-food-muted border-food-border hover:border-food-caramel/50 hover:text-food-brown'">
+          <span>{{ cat.icon }}</span>
+          <span>{{ cat.label }}</span>
+        </button>
       </div>
     </div>
 
@@ -109,10 +124,13 @@
         </p>
       </div>
 
-      <!-- Search no match -->
+      <!-- Search / filter no match -->
       <div v-else-if="!loading && spots.length && !filteredSpots.length" class="py-8 text-center px-3">
         <div class="text-3xl mb-3 select-none">🔍</div>
-        <p class="text-sm text-food-muted">找不到「{{ search }}」相關地點</p>
+        <p class="text-sm text-food-muted">
+          <template v-if="search">找不到「{{ search }}」相關地點</template>
+          <template v-else>此分類目前沒有標記</template>
+        </p>
       </div>
 
     </div>
@@ -120,19 +138,7 @@
 </template>
 
 <script lang="ts" setup>
-export interface SidebarSpot {
-  id: string
-  name: string
-  emoji: string
-  lat: number
-  lng: number
-  tags: string[]
-  notes: string
-  is_public: boolean
-  distance: number
-  address?: string
-  user_id: string
-}
+import type { SidebarSpot } from '~/types'
 
 const props = defineProps<{
   spots: SidebarSpot[]
@@ -141,16 +147,27 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  select:           [spot: SidebarSpot]
-  'view-comments':  [payload: { id: string; name: string }]
-  'write-comment':  [payload: { id: string; name: string }]
-  'toggle-bot':     []
+  select:             [spot: SidebarSpot]
+  'view-comments':    [payload: { id: string; name: string }]
+  'write-comment':    [payload: { id: string; name: string }]
+  'toggle-bot':       []
+  'category-changed': [categories: string[]]
 }>()
 
-const search = ref('')
+const search                = ref('')
+const sidebarCategoryFilters = ref<string[]>(['food'])
 
-const filteredSpots = computed(() => {
-  if (!search.value.trim()) return props.spots
+function toggleSidebarCategory(key: string) {
+  if (sidebarCategoryFilters.value.length === 1 && sidebarCategoryFilters.value[0] === key) return
+  const idx = sidebarCategoryFilters.value.indexOf(key)
+  if (idx === -1) sidebarCategoryFilters.value.push(key)
+  else sidebarCategoryFilters.value.splice(idx, 1)
+  emit('category-changed', [...sidebarCategoryFilters.value])
+}
+
+// 搜尋結果（跨所有分類）
+const searchResults = computed(() => {
+  if (!search.value.trim()) return null
   const q = search.value.toLowerCase()
   return props.spots.filter(s =>
     s.name.toLowerCase().includes(q) ||
@@ -158,6 +175,33 @@ const filteredSpots = computed(() => {
     (s.tags ?? []).some(t => t.toLowerCase().includes(q))
   )
 })
+
+// 搜尋時：chips 自動反映結果裡有哪些分類；無搜尋時：依使用者選擇
+const activeChipKeys = computed(() =>
+  searchResults.value !== null
+    ? [...new Set(searchResults.value.map(s => s.category ?? 'food'))]
+    : sidebarCategoryFilters.value
+)
+
+const filteredSpots = computed(() =>
+  searchResults.value !== null
+    ? searchResults.value
+    : sidebarCategoryFilters.value.length
+      ? props.spots.filter(s => sidebarCategoryFilters.value.includes(s.category ?? 'food'))
+      : props.spots
+)
+
+// 是否為唯一 active chip（不可關閉）
+function isLastActive(key: string): boolean {
+  return !search.value.trim()
+    && sidebarCategoryFilters.value.length === 1
+    && sidebarCategoryFilters.value[0] === key
+}
+
+// chip 是否應 disabled（搜尋中 或 最後一個 active）
+function isChipDisabled(key: string): boolean {
+  return !!search.value.trim() || isLastActive(key)
+}
 
 function formatDist(km: number): string {
   if (km < 1) return `${Math.round(km * 1000)} m`
