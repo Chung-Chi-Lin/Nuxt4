@@ -7,6 +7,7 @@ export function useTokenExpiry() {
     _isExpired.value = false
     if (_timer) { clearInterval(_timer); _timer = null }
     document.cookie = 'auth_token=; Max-Age=0; path=/'
+    document.cookie = 'session_id=; Max-Age=0; path=/'
     navigateTo('/login')
   }
 

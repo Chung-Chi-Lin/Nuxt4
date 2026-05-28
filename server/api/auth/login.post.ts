@@ -6,6 +6,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const supabase = getSupabaseClient()
+  const admin    = getSupabaseAdmin()
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
@@ -13,8 +14,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, statusMessage: '帳號或密碼錯誤' })
   }
 
+  // 每次登入更新 session_token，使其他裝置的舊 session 失效
+  const sessionToken = crypto.randomUUID()
+  await admin.from('profiles').update({ session_token: sessionToken }).eq('id', data.user.id)
+
   return {
-    token: data.session.access_token,
+    token:        data.session.access_token,
+    sessionToken,
     user: {
       id:       data.user.id,
       email:    data.user.email,

@@ -205,6 +205,8 @@ const { show, userLocation, requestIfNeeded, allow, deny } = useGeoModal()
 const helpBotRef = ref<{ toggle: () => void } | null>(null)
 function toggleHelpBot() { helpBotRef.value?.toggle() }
 
+useSessionGuard()
+
 const queryCenter = computed<GeoLocation | null>(() => {
   const lat = parseFloat(route.query.lat as string)
   const lng = parseFloat(route.query.lng as string)

@@ -129,8 +129,9 @@ useHead({ title: '波吉的美食地圖' })
 
 type Mode = 'login' | 'register' | 'forgot'
 
-const router = useRouter()
-const token  = useCookie('auth_token', { maxAge: 3600 })
+const router    = useRouter()
+const token     = useCookie('auth_token', { maxAge: 3600 })
+const sessionId = useCookie('session_id', { maxAge: 3600 })
 
 const mode           = ref<Mode>('login')
 const loading        = ref(false)
@@ -178,7 +179,8 @@ async function handleLogin(): Promise<void> {
       method: 'POST',
       body: { email: form.email.trim(), password: form.password },
     })
-    token.value = data.token
+    token.value     = data.token
+    sessionId.value = data.sessionToken
     if (rememberEmail.value) {
       localStorage.setItem('remember_email', form.email.trim())
     } else {
@@ -209,7 +211,8 @@ async function handleRegister(): Promise<void> {
     if (data.requiresConfirmation) {
       successMsg.value = '📬 驗證信已寄出，請到信箱點擊確認連結後再登入！'
     } else if (data.token) {
-      token.value = data.token
+      token.value     = data.token
+      sessionId.value = data.sessionToken ?? null
       await router.push('/map')
     }
   } catch (err: unknown) {

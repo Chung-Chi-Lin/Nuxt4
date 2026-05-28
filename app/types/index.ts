@@ -53,9 +53,11 @@ export interface AuthUser {
 
 export interface LoginResponse {
   token: string
+  sessionToken: string
 }
 
 export interface RegisterResponse {
-  token?: string
+  token?: string | null
+  sessionToken?: string | null
   requiresConfirmation?: boolean
 }

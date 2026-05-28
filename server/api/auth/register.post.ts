@@ -45,12 +45,14 @@ export default defineEventHandler(async (event) => {
   }
 
   // ── 寫入 profiles 表（用 admin 繞過 RLS）────────────────
+  const sessionToken = data.session ? crypto.randomUUID() : null
   const { error: profileError } = await admin
     .from('profiles')
     .insert({
-      id:       data.user.id,
-      username: displayName,
+      id:            data.user.id,
+      username:      displayName,
       email,
+      session_token: sessionToken,
     })
 
   if (profileError) {
@@ -64,8 +66,8 @@ export default defineEventHandler(async (event) => {
       email:    data.user.email,
       username: displayName,
     },
-    token: data.session?.access_token ?? null,
-    // Supabase 預設需要 Email 驗證，session 會是 null
+    token:        data.session?.access_token ?? null,
+    sessionToken: sessionToken,
     requiresConfirmation: !data.session,
   }
 })
