@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 z-[3000] flex items-center justify-center p-4">
+  <div class="fixed inset-0 z-[9999] flex items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
     <div class="relative bg-food-surface rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">

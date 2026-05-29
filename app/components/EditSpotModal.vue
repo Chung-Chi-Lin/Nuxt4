@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 z-[2000] flex items-end sm:items-center justify-center p-4">
+  <div class="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-4">
     <div class="absolute inset-0 bg-black/50" @click="$emit('cancel')" />
 
     <div class="relative bg-food-surface rounded-2xl w-full max-w-md max-h-[92vh] overflow-y-auto shadow-2xl">
