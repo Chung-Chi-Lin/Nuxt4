@@ -15,14 +15,21 @@ export default defineEventHandler(async (event) => {
 
   const { data: profile } = await admin
     .from('profiles')
-    .select('username, avatar_url, user_level, xp, role, session_token')
+    .select('username, avatar_url, user_level, xp, role')
     .eq('id', user.id)
     .single()
 
-  // 若 client 有帶 session guard header，比對 DB 中的 session_token
+  // 若 client 有帶 session guard header，另外查 session_token 比對
   const clientSession = getHeader(event, 'x-session-id')?.trim()
-  if (clientSession && profile?.session_token && clientSession !== profile.session_token) {
-    throw createError({ statusCode: 401, statusMessage: 'SESSION_INVALID' })
+  if (clientSession) {
+    const { data: sessionRow } = await admin
+      .from('profiles')
+      .select('session_token')
+      .eq('id', user.id)
+      .single()
+    if (sessionRow?.session_token && clientSession !== sessionRow.session_token) {
+      throw createError({ statusCode: 401, statusMessage: 'SESSION_INVALID' })
+    }
   }
 
   return {
