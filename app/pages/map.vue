@@ -59,9 +59,12 @@
             :fly-to="effectiveFlyTo"
             :bottom-inset="mobileBottomInset"
             :category-filters="sidebarCategories"
+            :trip-waypoints="activeTripWaypoints"
+            :trip-route-geometry="tripRouteGeometry"
             @spots-updated="onSpotsUpdated"
             @center-changed="onCenterChanged"
             @xp-gained="onXpGained"
+            @add-to-trip="onAddToTrip"
           />
         </ClientOnly>
         <ClientOnly>
@@ -83,11 +86,16 @@
             :spots="sidebarSpots"
             :loading="spotsLoading"
             :current-user-id="user?.id ?? ''"
+            :token="token ?? ''"
+            :pending-spot="pendingSpot"
             @select="handleSpotSelect"
             @view-comments="onSidebarViewComments"
             @write-comment="onSidebarWriteComment"
             @toggle-bot="toggleHelpBot"
             @category-changed="sidebarCategories = $event"
+            @waypoints-updated="onWaypointsUpdated"
+            @route-ready="onRouteReady"
+            @route-cleared="onRouteCleared"
           />
         </div>
       </aside>
@@ -133,11 +141,16 @@
               :spots="sidebarSpots"
               :loading="spotsLoading"
               :current-user-id="user?.id ?? ''"
+              :token="token ?? ''"
+              :pending-spot="pendingSpot"
               @select="handleSpotSelect"
               @view-comments="onSidebarViewComments"
               @write-comment="onSidebarWriteComment"
               @toggle-bot="toggleHelpBot"
               @category-changed="sidebarCategories = $event"
+              @waypoints-updated="onWaypointsUpdated"
+              @route-ready="onRouteReady"
+              @route-cleared="onRouteCleared"
             />
           </div>
 
@@ -171,7 +184,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { Spot, DbSpot, GeoLocation, AuthUser, SidebarSpot } from '~/types'
+import type { Spot, DbSpot, GeoLocation, AuthUser, SidebarSpot, TripWaypoint, PendingSpot } from '~/types'
 import { useGeoModal } from '~/composables/useGeoModal'
 
 definePageMeta({ middleware: 'auth' })
@@ -199,6 +212,9 @@ const spots: Spot[]       = []
 const sidebarViewingSpot  = ref<{ id: string; name: string } | null>(null)
 const sidebarWritingSpot  = ref<{ id: string; name: string } | null>(null)
 const sidebarCategories   = ref<string[]>(['food'])
+const activeTripWaypoints = ref<TripWaypoint[]>([])
+const tripRouteGeometry   = ref<any | null>(null)
+const pendingSpot         = ref<PendingSpot | null>(null)
 
 const { show, userLocation, requestIfNeeded, allow, deny } = useGeoModal()
 
@@ -221,7 +237,7 @@ const mobileBottomInset = computed<string | undefined>(() =>
   isMobile.value ? '3rem' : undefined
 )
 
-onMounted(() => {
+onMounted(async () => {
   isMobile.value = window.innerWidth < 768
   if (window.innerWidth >= 768) sidebarOpen.value = true
   if (!queryCenter.value) requestIfNeeded()
@@ -229,6 +245,23 @@ onMounted(() => {
   const onResize = () => { isMobile.value = window.innerWidth < 768 }
   window.addEventListener('resize', onResize, { passive: true })
   onUnmounted(() => window.removeEventListener('resize', onResize))
+
+  // Handle trip invite token from URL
+  const inviteToken = route.query.trip_invite as string | undefined
+  if (inviteToken) {
+    const existing: string[] = JSON.parse(localStorage.getItem('pending_trip_invites') ?? '[]')
+    if (!existing.includes(inviteToken)) existing.push(inviteToken)
+    localStorage.setItem('pending_trip_invites', JSON.stringify(existing))
+    // Remove token from URL without page reload
+    const q = { ...route.query }
+    delete q.trip_invite
+    router.replace({ query: q })
+  }
+
+  // Process any pending invites if user is logged in
+  if (token.value) {
+    await processPendingInvites()
+  }
 })
 
 const { data, error } = await useFetch<{ user: AuthUser }>('/api/auth/me', {
@@ -278,5 +311,48 @@ function onXpGained(payload: { newXp: number; newLevel: number; leveledUp: boole
   if (data.value?.user) {
     data.value.user.user_level = payload.newLevel
   }
+}
+
+async function processPendingInvites(): Promise<void> {
+  const pending: string[] = JSON.parse(localStorage.getItem('pending_trip_invites') ?? '[]')
+  if (!pending.length) return
+
+  const joined: string[] = []
+  for (const inviteToken of pending) {
+    try {
+      const res = await $fetch<{ trip: { name: string }; already_member: boolean }>('/api/trips/join', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token.value ?? ''}` },
+        body: { token: inviteToken },
+      })
+      if (!res.already_member) joined.push(res.trip.name)
+    } catch {
+      // Invalid / expired token — ignore silently
+    }
+  }
+  localStorage.removeItem('pending_trip_invites')
+  if (joined.length) {
+    alert(`已加入旅程：${joined.join('、')}`)
+  }
+}
+
+function onAddToTrip(spot: PendingSpot): void {
+  pendingSpot.value = spot
+  // Auto-open sidebar
+  sidebarOpen.value = true
+  // Clear pendingSpot after one tick so watch fires again on next addition
+  nextTick(() => { pendingSpot.value = null })
+}
+
+function onWaypointsUpdated(waypoints: TripWaypoint[]): void {
+  activeTripWaypoints.value = waypoints
+}
+
+function onRouteReady(geometry: any): void {
+  tripRouteGeometry.value = geometry
+}
+
+function onRouteCleared(): void {
+  tripRouteGeometry.value = null
 }
 </script>

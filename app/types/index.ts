@@ -51,6 +51,60 @@ export interface AuthUser {
   role?: string
 }
 
+export interface Trip {
+  id: string
+  name: string
+  description: string | null
+  created_by: string
+  created_at: string
+  updated_at: string
+  my_role: 'owner' | 'editor' | 'viewer'
+}
+
+export interface TripDay {
+  id: string
+  trip_id: string
+  day_index: number
+  label: string | null
+}
+
+export interface TripWaypoint {
+  id: string
+  day_id: string
+  spot_id: string | null
+  order_index: number
+  custom_name: string
+  emoji: string
+  lat: number
+  lng: number
+  transport_mode: 'car' | 'walk' | 'bike' | 'bus'
+  notes: string | null
+}
+
+export interface TripMember {
+  user_id: string
+  username: string
+  avatar_url: string | null
+  user_level: number
+  role: 'owner' | 'editor' | 'viewer'
+  joined_at: string
+  is_me: boolean
+}
+
+export interface TripDetail {
+  trip: Trip
+  days: TripDay[]
+  waypoints: TripWaypoint[]
+}
+
+export interface PendingSpot {
+  lat: number
+  lng: number
+  name: string
+  spot_id: string
+  emoji: string
+}
+
 export interface LoginResponse {
   token: string
   sessionToken: string

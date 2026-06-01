@@ -197,8 +197,8 @@
 </template>
 
 <script lang="ts" setup>
-import type { Map as LMap, TileLayer, LayerGroup, Marker, CircleMarker } from 'leaflet'
-import type { Spot, DbSpot, GeoLocation } from '~/types'
+import type { Map as LMap, TileLayer, LayerGroup, Marker, CircleMarker, Polyline } from 'leaflet'
+import type { Spot, DbSpot, GeoLocation, TripWaypoint, PendingSpot } from '~/types'
 
 interface NominatimResult {
   place_id: number
@@ -215,12 +215,15 @@ const props = defineProps<{
   flyTo?: GeoLocation | null
   bottomInset?: string
   categoryFilters: string[]
+  tripWaypoints?: TripWaypoint[]
+  tripRouteGeometry?: any | null
 }>()
 
 const emit = defineEmits<{
   'spots-updated': [data: { spots: DbSpot[]; loading: boolean }]
   'center-changed': [lat: number, lng: number]
   'xp-gained':     [payload: { newXp: number; newLevel: number; leveledUp: boolean }]
+  'add-to-trip':   [spot: PendingSpot]
 }>()
 
 // ── 地圖樣式 ─────────────────────────────────────────────────
@@ -293,6 +296,8 @@ let leafletMap: LMap | null = null
 let tileLayerInstance: TileLayer | null = null
 let demoSpotLayer: LayerGroup | null = null
 let dbSpotLayer: LayerGroup | null = null
+let tripLayer: LayerGroup | null = null
+let routePolyline: Polyline | null = null
 let tempMarker: Marker | null = null
 let userMarker: CircleMarker | null = null
 
@@ -374,6 +379,7 @@ onMounted(async () => {
 
   demoSpotLayer = L.layerGroup().addTo(leafletMap)
   dbSpotLayer   = L.layerGroup().addTo(leafletMap)
+  tripLayer     = L.layerGroup().addTo(leafletMap)
 
   // Demo spot markers
   for (const spot of props.spots) {
@@ -423,6 +429,8 @@ watch(() => props.flyTo, (loc) => {
 })
 
 watch(() => props.categoryFilters, renderMapMarkers, { deep: true })
+watch(() => props.tripWaypoints, renderTripLayer, { deep: true })
+watch(() => props.tripRouteGeometry, renderRoutePolyline)
 
 // ── 底部控制項偏移（跟手機底部 sheet 聯動）──────────────────
 function adjustBottomControls() {
@@ -489,6 +497,60 @@ function renderMapMarkers() {
   for (const s of toShow) addDbMarker(s)
 }
 
+// ── Trip waypoint markers ────────────────────────────────────
+function renderTripLayer() {
+  if (!tripLayer || !L) return
+  tripLayer.clearLayers()
+  const wps = props.tripWaypoints
+  if (!wps?.length) return
+
+  wps.forEach((wp, i) => {
+    const num = i + 1
+    const icon = L.divIcon({
+      html: `<div style="
+        width:28px;height:28px;border-radius:50%;
+        background:#C8860A;border:2.5px solid #fff;
+        box-shadow:0 2px 8px rgba(0,0,0,0.35);
+        display:flex;align-items:center;justify-content:center;
+        font-size:11px;font-weight:900;color:#fff;
+        font-family:'Noto Sans TC',sans-serif;line-height:1;
+        position:relative;
+      ">
+        ${num}
+        <div style="
+          position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);
+          width:0;height:0;border-left:5px solid transparent;
+          border-right:5px solid transparent;border-top:7px solid #C8860A;
+        "></div>
+      </div>`,
+      className: '',
+      iconSize: [28, 35],
+      iconAnchor: [14, 35],
+    })
+    L.marker([wp.lat, wp.lng], { icon })
+      .bindPopup(`<div style="font-family:'Noto Sans TC',sans-serif;font-size:13px;font-weight:700;color:#7C3D0A">
+        ${wp.emoji} ${wp.custom_name}
+        <div style="font-size:10px;font-weight:400;color:#9C7B5C;margin-top:2px">第 ${num} 站</div>
+      </div>`)
+      .addTo(tripLayer!)
+  })
+}
+
+function renderRoutePolyline() {
+  if (!leafletMap || !L) return
+  if (routePolyline) { routePolyline.remove(); routePolyline = null }
+  const geo = props.tripRouteGeometry
+  if (!geo) return
+
+  const coords: [number, number][] = geo.coordinates.map(([lng, lat]: [number, number]) => [lat, lng])
+  routePolyline = L.polyline(coords, {
+    color: '#C8860A',
+    weight: 4,
+    opacity: 0.8,
+    dashArray: '8, 4',
+  }).addTo(leafletMap)
+}
+
 function addDbMarker(spot: DbSpot) {
   if (!L || !dbSpotLayer) return
   const icon = L.divIcon({
@@ -534,6 +596,8 @@ function addDbMarker(spot: DbSpot) {
   const btnStyle = (bg: string, color: string, border: string) =>
     `background:${bg};color:${color};border:1px solid ${border};padding:4px 0;border-radius:6px;cursor:pointer;font-size:11px;font-family:'Noto Sans TC',sans-serif`
 
+  const addToTripHtml = `<button data-trip="${spot.id}" style="width:100%;${btnStyle('#FFF8EE','#C8860A','#E8C97A')};margin-top:5px">📌 加入路線</button>`
+
   const actionsHtml = isOwn
     ? `<div style="display:flex;flex-direction:column;gap:5px;margin-top:7px">
         <div style="display:flex;gap:5px">
@@ -541,6 +605,7 @@ function addDbMarker(spot: DbSpot) {
           <button data-del="${spot.id}"  style="flex:1;${btnStyle('#fef2f2','#C0392B','#fca5a5')}">🗑 刪除</button>
         </div>
         <button data-comment-view="${spot.id}" style="width:100%;${btnStyle('#F0FDF4','#16A34A','#BBF7D0')}">💬 查看評論</button>
+        ${addToTripHtml}
       </div>`
     : `<div style="display:flex;flex-direction:column;gap:5px;margin-top:7px">
         <div style="display:flex;gap:5px">
@@ -548,6 +613,7 @@ function addDbMarker(spot: DbSpot) {
           <button data-report="${spot.id}"        style="flex:1;${btnStyle('#fafafa','#9C7B5C','#E8D9C0')}">⚠️ 回報</button>
         </div>
         <button data-comment-view="${spot.id}" style="width:100%;${btnStyle('#F0FDF4','#16A34A','#BBF7D0')}">💬 查看評論</button>
+        ${addToTripHtml}
       </div>`
 
   const visibilityHtml = `<div style="font-size:10px;color:#9C7B5C;margin-top:4px">${isOwn ? (spot.is_public ? '🌐 公開' : '🔒 僅自己') : '👤 其他用戶'}</div>`
@@ -570,6 +636,12 @@ function addDbMarker(spot: DbSpot) {
     if (viewBtn) viewBtn.onclick = () => {
       leafletMap?.closePopup()
       viewingCommentSpot.value = { id: spot.id, name: spot.name }
+    }
+
+    const tripBtn = document.querySelector(`[data-trip="${spot.id}"]`) as HTMLElement
+    if (tripBtn) tripBtn.onclick = () => {
+      leafletMap?.closePopup()
+      emit('add-to-trip', { lat: spot.lat, lng: spot.lng, name: spot.name, spot_id: spot.id, emoji: spot.emoji })
     }
 
     if (isOwn) {
