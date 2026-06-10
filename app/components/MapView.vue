@@ -197,7 +197,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { Map as LMap, TileLayer, LayerGroup, Marker, CircleMarker, Polyline } from 'leaflet'
+import type { Map as LMap, TileLayer, LayerGroup, Marker, CircleMarker } from 'leaflet'
 import type { Spot, DbSpot, GeoLocation, TripWaypoint, PendingSpot } from '~/types'
 
 interface NominatimResult {
@@ -217,6 +217,9 @@ const props = defineProps<{
   categoryFilters: string[]
   tripWaypoints?: TripWaypoint[]
   tripRouteGeometry?: any | null
+  tripTabActive?: boolean
+  reloadTrigger?: number
+  flyToTripTrigger?: number
 }>()
 
 const emit = defineEmits<{
@@ -297,7 +300,7 @@ let tileLayerInstance: TileLayer | null = null
 let demoSpotLayer: LayerGroup | null = null
 let dbSpotLayer: LayerGroup | null = null
 let tripLayer: LayerGroup | null = null
-let routePolyline: Polyline | null = null
+let routeGeoLayer: any = null
 let tempMarker: Marker | null = null
 let userMarker: CircleMarker | null = null
 
@@ -388,16 +391,16 @@ onMounted(async () => {
 
   // 地圖移動後更新 DB 標記
   let viewportTimer: ReturnType<typeof setTimeout> | null = null
-  leafletMap.on('moveend', () => {
+  leafletMap!.on('moveend', () => {
     if (viewportTimer) clearTimeout(viewportTimer)
     viewportTimer = setTimeout(fetchViewportSpots, 600)
   })
 
   // 新增模式點擊
-  leafletMap.on('click', (e: any) => {
+  leafletMap!.on('click', (e: any) => {
     if (!addMode.value) return
     addMode.value = false
-    leafletMap.getContainer().style.cursor = ''
+    leafletMap!.getContainer().style.cursor = ''
     placeTempMarker(e.latlng.lat, e.latlng.lng, '')
     addLatLng.value  = { lat: e.latlng.lat, lng: e.latlng.lng }
     addModalName.value = ''
@@ -431,6 +434,8 @@ watch(() => props.flyTo, (loc) => {
 watch(() => props.categoryFilters, renderMapMarkers, { deep: true })
 watch(() => props.tripWaypoints, renderTripLayer, { deep: true })
 watch(() => props.tripRouteGeometry, renderRoutePolyline)
+watch(() => props.reloadTrigger, () => { if (leafletMap) fetchViewportSpots() })
+watch(() => props.flyToTripTrigger, fitToTripWaypoints)
 
 // ── 底部控制項偏移（跟手機底部 sheet 聯動）──────────────────
 function adjustBottomControls() {
@@ -492,7 +497,7 @@ function renderMapMarkers() {
   dbSpotLayer.clearLayers()
   const active = props.categoryFilters
   const toShow = active.length === 0
-    ? allFetchedSpots.value
+    ? []
     : allFetchedSpots.value.filter(s => active.includes(s.category ?? 'food'))
   for (const s of toShow) addDbMarker(s)
 }
@@ -536,19 +541,37 @@ function renderTripLayer() {
   })
 }
 
-function renderRoutePolyline() {
+function renderRoutePolyline(geo?: any) {
   if (!leafletMap || !L) return
-  if (routePolyline) { routePolyline.remove(); routePolyline = null }
-  const geo = props.tripRouteGeometry
-  if (!geo) return
+  if (routeGeoLayer) { routeGeoLayer.remove(); routeGeoLayer = null }
 
-  const coords: [number, number][] = geo.coordinates.map(([lng, lat]: [number, number]) => [lat, lng])
-  routePolyline = L.polyline(coords, {
+  const geometry = geo ?? props.tripRouteGeometry
+  if (!geometry?.coordinates?.length) return
+
+  // Convert GeoJSON [lng, lat] → Leaflet [lat, lng]
+  const latLngs: [number, number][] = geometry.coordinates.map(
+    ([lng, lat]: [number, number]) => [lat, lng] as [number, number]
+  )
+
+  routeGeoLayer = L.polyline(latLngs, {
     color: '#C8860A',
-    weight: 4,
-    opacity: 0.8,
-    dashArray: '8, 4',
+    weight: 5,
+    opacity: 0.9,
+    dashArray: '10 5',
   }).addTo(leafletMap)
+  // Note: markers are in the markerPane (z-index 600) and paths in the overlayPane (z-index 400),
+  // so numbered markers are always visually above the route line without any extra call.
+}
+
+function fitToTripWaypoints() {
+  const wps = props.tripWaypoints
+  if (!leafletMap || !L || !wps?.length) return
+  const latlngs: [number, number][] = wps.map(wp => [wp.lat, wp.lng])
+  if (latlngs.length === 1 && latlngs[0]) {
+    leafletMap.flyTo(latlngs[0], 15, { duration: 1 })
+  } else {
+    leafletMap.fitBounds(latlngs, { padding: [50, 50], maxZoom: 15, animate: true })
+  }
 }
 
 function addDbMarker(spot: DbSpot) {
@@ -639,9 +662,12 @@ function addDbMarker(spot: DbSpot) {
     }
 
     const tripBtn = document.querySelector(`[data-trip="${spot.id}"]`) as HTMLElement
-    if (tripBtn) tripBtn.onclick = () => {
-      leafletMap?.closePopup()
-      emit('add-to-trip', { lat: spot.lat, lng: spot.lng, name: spot.name, spot_id: spot.id, emoji: spot.emoji })
+    if (tripBtn) {
+      tripBtn.style.display = props.tripTabActive ? 'block' : 'none'
+      tripBtn.onclick = () => {
+        leafletMap?.closePopup()
+        emit('add-to-trip', { lat: spot.lat, lng: spot.lng, name: spot.name, spot_id: spot.id, emoji: spot.emoji })
+      }
     }
 
     if (isOwn) {
@@ -717,7 +743,7 @@ function placeTempMarker(lat: number, lng: number, name: string) {
       </div>`)
     .addTo(leafletMap)
 
-  tempMarker.on('popupopen', () => {
+  tempMarker!.on('popupopen', () => {
     const btn = document.getElementById('add-spot-btn')
     if (btn) {
       btn.onclick = () => {
@@ -730,7 +756,7 @@ function placeTempMarker(lat: number, lng: number, name: string) {
   })
 
   // popup 關閉但 modal 沒開 → 表示使用者取消，移除圖釘
-  tempMarker.on('popupclose', () => {
+  tempMarker!.on('popupclose', () => {
     setTimeout(() => {
       if (!showAddModal.value && tempMarker) {
         tempMarker.remove()
@@ -739,7 +765,7 @@ function placeTempMarker(lat: number, lng: number, name: string) {
     }, 50)
   })
 
-  tempMarker.openPopup()
+  tempMarker!.openPopup()
 
   // Reverse geocode to verify if a known POI exists at this location
   reverseGeocode(lat, lng)

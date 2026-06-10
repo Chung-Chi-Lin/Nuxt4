@@ -99,7 +99,7 @@
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
                   <span class="font-bold text-sm text-gray-800 truncate">{{ u.username || '（無暱稱）' }}</span>
-                  <TierBadge :tier="u.plan?.tier ?? 'free'" :expires="u.plan?.trial_expires_at" />
+                  <TierBadge :tier="u.plan?.tier ?? 'free'" :expires="u.plan?.trial_expires_at ?? undefined" />
                 </div>
                 <p class="text-xs text-gray-400 truncate mt-0.5">{{ u.email }}</p>
               </div>
@@ -399,7 +399,7 @@ async function saveEdit() {
     // 更新本地狀態
     const idx = users.value.findIndex(u => u.id === editing.value!.id)
     if (idx !== -1) {
-      users.value[idx].plan = {
+      users.value[idx]!.plan = {
         tier:             form.tier,
         daily_limit:      form.daily_limit,
         bonus_credits:    form.bonus_credits,

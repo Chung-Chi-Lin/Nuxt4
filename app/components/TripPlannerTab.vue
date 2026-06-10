@@ -16,10 +16,10 @@
       </div>
 
       <div v-if="activeTrip" class="flex gap-1.5">
-        <button @click="copyInviteLink"
-          :disabled="copyLoading"
-          class="flex-1 py-1.5 text-[11px] font-bold rounded-lg border border-food-border text-food-muted hover:border-food-caramel hover:text-food-caramel transition disabled:opacity-50">
-          🔗 {{ copyLoading ? '產生中…' : '分享' }}
+        <button @click="showInviteMenu = !showInviteMenu"
+          :class="showInviteMenu ? 'border-food-caramel text-food-caramel bg-food-beige' : 'border-food-border text-food-muted hover:border-food-caramel hover:text-food-caramel'"
+          class="flex-1 py-1.5 text-[11px] font-bold rounded-lg border transition">
+          🔗 分享
         </button>
         <button @click="showMembers = true"
           class="flex-1 py-1.5 text-[11px] font-bold rounded-lg border border-food-border text-food-muted hover:border-food-caramel hover:text-food-caramel transition">
@@ -29,6 +29,20 @@
           class="px-3 py-1.5 text-[11px] font-bold rounded-lg border border-red-200 text-red-400 hover:bg-red-50 transition">
           🗑
         </button>
+      </div>
+
+      <!-- Invite role picker -->
+      <div v-if="showInviteMenu && activeTrip" class="flex items-center gap-1.5 pb-1">
+        <span class="text-[10px] text-food-muted shrink-0">邀請為：</span>
+        <button @click="copyInviteLink('viewer')" :disabled="copyLoading"
+          class="flex-1 py-1.5 text-[11px] font-bold rounded-lg border border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700 disabled:opacity-50 transition">
+          👁 觀看者
+        </button>
+        <button @click="copyInviteLink('editor')" :disabled="copyLoading"
+          class="flex-1 py-1.5 text-[11px] font-bold rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-50 transition">
+          ✏️ 可編輯
+        </button>
+        <button @click="showInviteMenu = false" class="text-food-muted hover:text-food-brown text-xs transition shrink-0">✕</button>
       </div>
     </div>
 
@@ -57,8 +71,8 @@
     <!-- Waypoints + Route -->
     <div v-if="activeTrip" class="flex-1 overflow-y-auto px-4 pb-4 min-h-0">
 
-      <!-- Transport + Calculate -->
-      <div class="flex items-center gap-2 mb-2.5 sticky top-0 bg-food-surface pt-1 pb-2 z-10">
+      <!-- Transport mode + Calculate -->
+      <div class="flex items-center gap-2 mb-2 sticky top-0 bg-food-surface pt-1 pb-1.5 z-10">
         <div class="flex gap-1">
           <button v-for="m in MODES" :key="m.key"
             @click="transportMode = m.key"
@@ -72,16 +86,24 @@
         </div>
         <button @click="calculateRoute"
           :disabled="localWaypoints.length < 2 || routeLoading"
-          class="ml-auto text-[11px] font-bold px-3 py-1.5 bg-food-caramel text-white rounded-lg disabled:opacity-40 transition hover:bg-food-orange active:scale-95 whitespace-nowrap">
-          {{ routeLoading ? '計算中…' : '計算路線 🗺️' }}
+          class="ml-auto text-[11px] font-bold px-3 py-1.5 rounded-lg transition active:scale-95 whitespace-nowrap disabled:opacity-40
+                 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
+          {{ routeLoading ? '計算中…' : '🗺️ 規劃路線' }}
         </button>
+      </div>
+
+      <!-- 提示條：有景點但尚未規劃路線 -->
+      <div v-if="localWaypoints.length >= 2 && !routeInfo && !routeLoading"
+        class="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 flex items-center gap-2 mb-2 text-amber-700">
+        <span class="text-base shrink-0">💡</span>
+        <p class="text-[11px] leading-snug flex-1">景點排好順序後，點右上角「🗺️ 規劃路線」即可查看路線與預估時間</p>
       </div>
 
       <!-- Route info bar -->
       <div v-if="routeInfo"
-        class="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 flex items-center gap-3 mb-2.5">
-        <span class="text-xs font-bold text-orange-700">📏 {{ formatDist(routeInfo.distance) }}</span>
-        <span class="text-xs font-bold text-orange-700">⏱ {{ formatDur(routeInfo.duration) }}</span>
+        class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex items-center gap-3 mb-2">
+        <span class="text-xs font-bold text-emerald-700">📏 {{ formatDist(routeInfo.distance) }}</span>
+        <span class="text-xs font-bold text-emerald-700">⏱ {{ formatDur(routeInfo.duration) }}</span>
         <button @click="clearRoute" class="ml-auto text-food-muted hover:text-red-400 text-xs transition">✕</button>
       </div>
 
@@ -156,12 +178,14 @@
     </div>
 
     <!-- Members modal -->
-    <TripMembersModal v-if="showMembers && activeTrip"
-      :trip-id="activeTrip.trip.id"
-      :my-role="activeTrip.trip.my_role"
-      :token="token"
-      @close="showMembers = false"
-    />
+    <Teleport to="body">
+      <TripMembersModal v-if="showMembers && activeTrip"
+        :trip-id="activeTrip.trip.id"
+        :my-role="activeTrip.trip.my_role"
+        :token="token"
+        @close="showMembers = false"
+      />
+    </Teleport>
   </div>
 </template>
 
@@ -192,9 +216,11 @@ const saving         = ref(false)
 const copyLoading    = ref(false)
 const showCreateTrip = ref(false)
 const showMembers    = ref(false)
+const showInviteMenu = ref(false)
 const newTripName    = ref('')
 const isDirty        = ref(false)
 const transportMode  = ref<'car' | 'walk' | 'bike' | 'bus'>('car')
+const queuedSpot     = ref<PendingSpot | null>(null)
 const routeInfo      = ref<{ distance: number; duration: number } | null>(null)
 const routeLoading   = ref(false)
 
@@ -220,6 +246,11 @@ const canEdit = computed(() =>
 
 const headers = computed(() => ({ Authorization: `Bearer ${props.token}` }))
 
+function handleErr(err: any, fallback: string) {
+  if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
+  alert(err?.data?.statusMessage ?? fallback)
+}
+
 // ── Load trips ────────────────────────────────────────────────
 async function fetchTrips() {
   if (!props.token) return
@@ -228,10 +259,10 @@ async function fetchTrips() {
     const { trips: data } = await $fetch<{ trips: Trip[] }>('/api/trips', { headers: headers.value })
     trips.value = data
     if (data.length && !selectedTripId.value) {
-      await loadTrip(data[0].id)
+      await loadTrip(data[0]!.id)
     }
-  } catch {
-    // silent
+  } catch (err: any) {
+    if (isTokenError(err)) useTokenExpiry().triggerExpiry()
   } finally {
     loading.value = false
   }
@@ -239,20 +270,25 @@ async function fetchTrips() {
 
 async function loadTrip(id: string) {
   selectedTripId.value = id
-  const data = await $fetch<TripDetail>(`/api/trips/${id}`, { headers: headers.value })
-  activeTrip.value = data
-  activeDayIndex.value = 0
-  syncLocalWaypoints()
+  try {
+    const data = await $fetch<TripDetail>(`/api/trips/${id}`, { headers: headers.value })
+    activeTrip.value = data
+    activeDayIndex.value = 0
+    syncLocalWaypoints()
+  } catch (err: any) {
+    handleErr(err, '載入旅程失敗')
+  }
 }
 
 function syncLocalWaypoints() {
-  if (!activeDay.value || !activeTrip.value) { localWaypoints.value = []; return }
+  if (!activeDay.value || !activeTrip.value) { localWaypoints.value = []; emitWaypoints(); return }
   localWaypoints.value = activeTrip.value.waypoints
     .filter(w => w.day_id === activeDay.value!.id)
     .sort((a, b) => a.order_index - b.order_index)
     .map(w => ({ ...w }))
   isDirty.value = false
   clearRoute()
+  emitWaypoints()
 }
 
 watch(activeDayIndex, syncLocalWaypoints)
@@ -278,8 +314,15 @@ async function createTrip() {
     syncLocalWaypoints()
     showCreateTrip.value = false
     newTripName.value = ''
+
+    // Add any spot that was queued before the trip existed
+    if (queuedSpot.value) {
+      await nextTick()
+      addWaypoint(queuedSpot.value)
+      queuedSpot.value = null
+    }
   } catch (err: any) {
-    alert(err.data?.statusMessage ?? '建立失敗')
+    handleErr(err, '建立失敗')
   } finally {
     creating.value = false
   }
@@ -288,13 +331,17 @@ async function createTrip() {
 async function confirmDeleteTrip() {
   if (!activeTrip.value || !confirm(`確定刪除「${activeTrip.value.trip.name}」？此操作無法復原。`)) return
   const id = activeTrip.value.trip.id
-  await $fetch(`/api/trips/${id}`, { method: 'DELETE', headers: headers.value })
-  trips.value = trips.value.filter(t => t.id !== id)
-  activeTrip.value = null
-  selectedTripId.value = null
-  localWaypoints.value = []
-  clearRoute()
-  if (trips.value.length) await loadTrip(trips.value[0].id)
+  try {
+    await $fetch(`/api/trips/${id}`, { method: 'DELETE', headers: headers.value })
+    trips.value = trips.value.filter(t => t.id !== id)
+    activeTrip.value = null
+    selectedTripId.value = null
+    localWaypoints.value = []
+    clearRoute()
+    if (trips.value.length) await loadTrip(trips.value[0]!.id)
+  } catch (err: any) {
+    handleErr(err, '刪除旅程失敗')
+  }
 }
 
 // ── Day management ────────────────────────────────────────────
@@ -308,6 +355,8 @@ async function addDay() {
     })
     activeTrip.value.days.push(day)
     activeDayIndex.value = activeTrip.value.days.length - 1
+  } catch (err: any) {
+    handleErr(err, '新增天數失敗')
   } finally {
     dayLoading.value = false
   }
@@ -323,6 +372,8 @@ async function deleteCurrentDay() {
       headers: headers.value,
     })
     await loadTrip(activeTrip.value.trip.id)
+  } catch (err: any) {
+    handleErr(err, '刪除失敗')
   } finally {
     dayLoading.value = false
   }
@@ -378,13 +429,13 @@ async function saveWaypoints() {
     localWaypoints.value = saved.map(w => ({ ...w }))
     isDirty.value = false
   } catch (err: any) {
-    alert(err.data?.statusMessage ?? '儲存失敗')
+    handleErr(err, '儲存失敗')
   } finally {
     saving.value = false
   }
 }
 
-// ── Route calculation ────────────────────────────────────────
+// ── Route calculation ─────────────────────────────────────────
 async function calculateRoute() {
   if (localWaypoints.value.length < 2 || routeLoading.value) return
   routeLoading.value = true
@@ -395,8 +446,9 @@ async function calculateRoute() {
     })
     routeInfo.value = { distance: data.distance, duration: data.duration }
     emit('route-ready', data.geometry)
-  } catch (err: any) {
-    alert(err.data?.statusMessage ?? '路線計算失敗，請稍後再試')
+  } catch {
+    // silently skip — OSRM demo may be temporarily unavailable
+    clearRoute()
   } finally {
     routeLoading.value = false
   }
@@ -408,20 +460,22 @@ function clearRoute() {
 }
 
 // ── Invite link ──────────────────────────────────────────────
-async function copyInviteLink() {
+async function copyInviteLink(role: 'viewer' | 'editor' = 'viewer') {
   if (!activeTrip.value || copyLoading.value) return
   copyLoading.value = true
   try {
     const { token: inviteToken } = await $fetch<{ token: string }>('/api/trips/invite', {
       method: 'POST',
       headers: headers.value,
-      body: { tripId: activeTrip.value.trip.id, role: 'viewer' },
+      body: { tripId: activeTrip.value.trip.id, role },
     })
     const url = `${window.location.origin}/map?trip_invite=${inviteToken}`
     await navigator.clipboard.writeText(url)
-    alert('邀請連結已複製！有效期 7 天。')
+    const roleLabel = role === 'editor' ? '可編輯' : '觀看者'
+    alert(`已複製「${roleLabel}」邀請連結！有效期 7 天。`)
+    showInviteMenu.value = false
   } catch (err: any) {
-    alert(err.data?.statusMessage ?? '產生連結失敗')
+    handleErr(err, '產生連結失敗')
   } finally {
     copyLoading.value = false
   }
@@ -441,7 +495,14 @@ function formatDur(sec: number): string {
 
 // ── Watch pending spot from map ───────────────────────────────
 watch(() => props.pendingSpot, (spot) => {
-  if (spot) addWaypoint(spot)
+  if (!spot) return
+  if (activeTrip.value) {
+    addWaypoint(spot)
+  } else {
+    // No active trip — queue the spot and open the create dialog
+    queuedSpot.value = spot
+    showCreateTrip.value = true
+  }
 })
 
 // ── Init ─────────────────────────────────────────────────────

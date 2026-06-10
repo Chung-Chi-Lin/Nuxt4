@@ -31,10 +31,11 @@ export default defineEventHandler(async (event) => {
     .order('day_index')
 
   for (let i = 0; i < (remaining ?? []).length; i++) {
-    if (remaining![i].day_index !== i) {
+    const day = remaining![i]!
+    if (day.day_index !== i) {
       await admin.from('trip_days')
         .update({ day_index: i, label: `Day ${i + 1}` })
-        .eq('id', remaining![i].id)
+        .eq('id', day.id)
     }
   }
 

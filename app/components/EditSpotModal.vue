@@ -42,7 +42,7 @@
 
           <!-- Page navigation -->
           <div class="flex items-center justify-between mb-2">
-            <p class="text-[10px] text-food-muted font-medium">{{ EMOJI_PAGES[emojiPage].label }}</p>
+            <p class="text-[10px] text-food-muted font-medium">{{ currentEmojiPage.label }}</p>
             <div class="flex items-center gap-1.5">
               <button type="button" aria-label="上一頁"
                 class="w-6 h-6 rounded-full flex items-center justify-center text-food-muted hover:text-food-brown hover:bg-food-beige transition disabled:opacity-30 text-base font-bold"
@@ -70,7 +70,7 @@
 
           <!-- Emoji grid -->
           <div class="flex flex-wrap gap-2 mb-2">
-            <button v-for="e in EMOJI_PAGES[emojiPage].emojis" :key="e" type="button"
+            <button v-for="e in currentEmojiPage.emojis" :key="e" type="button"
               :aria-label="`選擇圖示 ${e}`"
               :aria-pressed="emoji === e"
               @click="emoji = e"
@@ -216,6 +216,7 @@ const EMOJI_PAGES = [
 ] as const
 
 const emojiPage = ref(0)
+const currentEmojiPage = computed(() => EMOJI_PAGES[emojiPage.value]!)
 
 const props = defineProps<{
   spot: DbSpot

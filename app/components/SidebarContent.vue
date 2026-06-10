@@ -47,11 +47,9 @@
         </div>
         <div class="flex flex-wrap gap-1.5 mt-2">
           <button v-for="cat in SPOT_CATEGORIES" :key="cat.key" type="button"
-            :disabled="isChipDisabled(cat.key)"
-            :title="isLastActive(cat.key) ? '至少需保留一個分類' : undefined"
             @click="toggleSidebarCategory(cat.key)"
             :aria-pressed="activeChipKeys.includes(cat.key)"
-            class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition disabled:cursor-not-allowed disabled:opacity-80"
+            class="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition active:scale-95"
             :class="activeChipKeys.includes(cat.key)
               ? 'bg-food-caramel text-white border-food-caramel'
               : 'bg-food-beige text-food-muted border-food-border hover:border-food-caramel/50 hover:text-food-brown'">
@@ -122,6 +120,12 @@
           </div>
         </template>
 
+        <div v-else-if="noCategorySelected" class="py-10 text-center px-3">
+          <div class="text-4xl mb-3 select-none">🏷️</div>
+          <p class="text-sm font-bold text-food-brown mb-1.5">選擇上方分類</p>
+          <p class="text-xs text-food-muted leading-relaxed">勾選至少一個分類<br>即可顯示推薦景點</p>
+        </div>
+
         <div v-else-if="!loading && !spots.length" class="py-10 text-center px-3">
           <div class="text-5xl mb-4 select-none">🏆</div>
           <p class="font-bold text-food-brown text-sm mb-1.5">您搜尋的地點</p>
@@ -148,10 +152,10 @@
 
     <!-- ── 路線規劃 tab ────────────────────────────────────── -->
     <TripPlannerTab
-      v-else-if="activeTab === 'trip'"
+      v-show="activeTab === 'trip'"
       ref="tripPlannerRef"
-      :token="token"
-      :pending-spot="pendingSpot"
+      :token="token ?? ''"
+      :pending-spot="pendingSpot ?? null"
       class="flex-1 min-h-0"
       @waypoints-updated="emit('waypoints-updated', $event)"
       @route-ready="emit('route-ready', $event)"
@@ -181,24 +185,27 @@ const emit = defineEmits<{
   'waypoints-updated': [waypoints: TripWaypoint[]]
   'route-ready':       [geometry: any]
   'route-cleared':     []
+  'tab-changed':       [tab: string]
 }>()
 
 const activeTab = ref<'spots' | 'trip'>('spots')
+watch(activeTab, (tab) => emit('tab-changed', tab))
 const tripPlannerRef = ref<any>(null)
 
 const search                 = ref('')
 const sidebarCategoryFilters = ref<string[]>(['food'])
 
 function toggleSidebarCategory(key: string) {
-  if (sidebarCategoryFilters.value.length === 1 && sidebarCategoryFilters.value[0] === key) return
   const idx = sidebarCategoryFilters.value.indexOf(key)
   if (idx === -1) sidebarCategoryFilters.value.push(key)
   else sidebarCategoryFilters.value.splice(idx, 1)
   emit('category-changed', [...sidebarCategoryFilters.value])
 }
 
+const isSearching = computed(() => search.value.trim().length > 0)
+
 const searchResults = computed(() => {
-  if (!search.value.trim()) return null
+  if (!isSearching.value) return null
   const q = search.value.toLowerCase()
   return props.spots.filter(s =>
     s.name.toLowerCase().includes(q) ||
@@ -207,29 +214,17 @@ const searchResults = computed(() => {
   )
 })
 
-const activeChipKeys = computed(() =>
-  searchResults.value !== null
-    ? [...new Set(searchResults.value.map(s => s.category ?? 'food'))]
-    : sidebarCategoryFilters.value
+const activeChipKeys = computed(() => sidebarCategoryFilters.value)
+
+const noCategorySelected = computed(() =>
+  !isSearching.value && sidebarCategoryFilters.value.length === 0
 )
 
-const filteredSpots = computed(() =>
-  searchResults.value !== null
-    ? searchResults.value
-    : sidebarCategoryFilters.value.length
-      ? props.spots.filter(s => sidebarCategoryFilters.value.includes(s.category ?? 'food'))
-      : props.spots
-)
-
-function isLastActive(key: string): boolean {
-  return !search.value.trim()
-    && sidebarCategoryFilters.value.length === 1
-    && sidebarCategoryFilters.value[0] === key
-}
-
-function isChipDisabled(key: string): boolean {
-  return !!search.value.trim() || isLastActive(key)
-}
+const filteredSpots = computed(() => {
+  if (isSearching.value) return searchResults.value ?? []
+  if (noCategorySelected.value) return []
+  return props.spots.filter(s => sidebarCategoryFilters.value.includes(s.category ?? 'food'))
+})
 
 function formatDist(km: number): string {
   if (km < 1) return `${Math.round(km * 1000)} m`

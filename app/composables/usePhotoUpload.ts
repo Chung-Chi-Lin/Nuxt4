@@ -27,7 +27,7 @@ export function usePhotoUpload(existingCount: () => number = () => 0, maxPhotos 
   }
 
   function removeNewPhoto(i: number) {
-    URL.revokeObjectURL(newPreviews.value[i])
+    URL.revokeObjectURL(newPreviews.value[i]!)
     newFiles.value.splice(i, 1)
     newPreviews.value.splice(i, 1)
   }

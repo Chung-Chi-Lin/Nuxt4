@@ -17,11 +17,33 @@
             <span v-else class="flex items-center justify-center w-full h-full text-base select-none">👤</span>
           </div>
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-1.5">
+            <div class="flex items-center gap-1.5 mb-1">
               <span class="text-xs font-bold text-food-brown truncate">{{ m.username }}</span>
-              <span v-if="m.is_me" class="text-[10px] text-food-caramel">(我)</span>
+              <span v-if="m.is_me" class="text-[10px] text-food-caramel shrink-0">(我)</span>
             </div>
-            <span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+            <!-- Owner: role toggle for non-owner members -->
+            <div v-if="myRole === 'owner' && !m.is_me && m.role !== 'owner'" class="flex gap-1">
+              <button
+                @click="updateRole(m.user_id, 'viewer')"
+                :disabled="roleUpdating === m.user_id"
+                :class="m.role === 'viewer'
+                  ? 'bg-gray-200 text-gray-700 border-gray-300'
+                  : 'bg-food-surface text-food-muted border-food-border hover:border-gray-300 hover:text-gray-600'"
+                class="text-[10px] px-2 py-0.5 rounded-full font-bold border transition disabled:opacity-50">
+                觀看者
+              </button>
+              <button
+                @click="updateRole(m.user_id, 'editor')"
+                :disabled="roleUpdating === m.user_id"
+                :class="m.role === 'editor'
+                  ? 'bg-blue-100 text-blue-700 border-blue-200'
+                  : 'bg-food-surface text-food-muted border-food-border hover:border-blue-200 hover:text-blue-600'"
+                class="text-[10px] px-2 py-0.5 rounded-full font-bold border transition disabled:opacity-50">
+                可編輯
+              </button>
+            </div>
+            <!-- Others: static badge -->
+            <span v-else class="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
               :class="{
                 'bg-amber-100 text-amber-700': m.role === 'owner',
                 'bg-blue-100 text-blue-700':   m.role === 'editor',
@@ -31,9 +53,9 @@
             </span>
           </div>
           <button
-            v-if="(myRole === 'owner' && m.role !== 'owner') || (m.is_me && m.role !== 'owner')"
+            v-if="(myRole === 'owner' && !m.is_me && m.role !== 'owner') || (m.is_me && m.role !== 'owner')"
             @click="removeMember(m.user_id)"
-            class="text-red-400 hover:text-red-600 text-xs transition shrink-0">
+            class="text-red-400 hover:text-red-600 text-xs transition shrink-0 leading-none">
             {{ m.is_me ? '退出' : '移除' }}
           </button>
         </div>
@@ -60,8 +82,9 @@ const props = defineProps<{
 
 defineEmits<{ close: [] }>()
 
-const members = ref<TripMember[]>([])
-const loading = ref(true)
+const members     = ref<TripMember[]>([])
+const loading     = ref(true)
+const roleUpdating = ref<string | null>(null)
 
 async function fetchMembers() {
   loading.value = true
@@ -72,6 +95,24 @@ async function fetchMembers() {
     members.value = data
   } finally {
     loading.value = false
+  }
+}
+
+async function updateRole(uid: string, role: 'viewer' | 'editor') {
+  const member = members.value.find(m => m.user_id === uid)
+  if (!member || member.role === role) return
+  roleUpdating.value = uid
+  try {
+    await $fetch(`/api/trips/${props.tripId}/members/${uid}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${props.token}` },
+      body: { role },
+    })
+    member.role = role
+  } catch (err: any) {
+    alert(err.data?.statusMessage ?? '更新角色失敗')
+  } finally {
+    roleUpdating.value = null
   }
 }
 

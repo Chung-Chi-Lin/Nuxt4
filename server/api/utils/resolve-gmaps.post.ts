@@ -28,17 +28,17 @@ function parseGmapsUrl(url: string): { lat: number; lng: number; name: string } 
   const atMatch = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
   if (atMatch) {
     return {
-      lat:  parseFloat(atMatch[1]),
-      lng:  parseFloat(atMatch[2]),
+      lat:  parseFloat(atMatch[1]!),
+      lng:  parseFloat(atMatch[2]!),
       name: extractPlaceName(url),
     }
   }
   // ?q=lat,lng
   const qMatch = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/)
-  if (qMatch) return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]), name: '' }
+  if (qMatch) return { lat: parseFloat(qMatch[1]!), lng: parseFloat(qMatch[2]!), name: '' }
   // ?ll=lat,lng（舊格式）
   const llMatch = url.match(/[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/)
-  if (llMatch) return { lat: parseFloat(llMatch[1]), lng: parseFloat(llMatch[2]), name: '' }
+  if (llMatch) return { lat: parseFloat(llMatch[1]!), lng: parseFloat(llMatch[2]!), name: '' }
 
   return null
 }
@@ -46,7 +46,7 @@ function parseGmapsUrl(url: string): { lat: number; lng: number; name: string } 
 function extractPlaceName(url: string): string {
   try {
     const m = url.match(/\/place\/([^/@]+)\/@/)
-    if (m) return decodeURIComponent(m[1].replace(/\+/g, ' '))
+    if (m) return decodeURIComponent(m[1]!.replace(/\+/g, ' '))
   } catch {}
   return ''
 }

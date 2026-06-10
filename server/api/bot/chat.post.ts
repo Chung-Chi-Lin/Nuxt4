@@ -3,7 +3,7 @@ import { wmoZh, wmoEmoji } from '../../utils/weather'
 const DAILY_LIMIT = 15
 const GROQ_URL    = 'https://api.groq.com/openai/v1/chat/completions'
 
-// ── 網站操作 FAQ（固定答案，AI 必須照抄，不得自行發揮）─────────────
+// ── 網站操作 FAQ ────────────────────────────────────────────────────
 const SITE_FAQ = `
 問：如何新增美食地點？
 答：在地圖上點擊任意位置，就會跳出新增表單。填寫名稱、評分、備註後按儲存，標記就會出現在地圖上囉！🍜
@@ -24,7 +24,7 @@ const SITE_FAQ = `
 答：點擊右上角的頭像或使用者名稱，進入個人頁面後即可上傳大頭照。支援 JPG、PNG 等常見格式。
 `.trim()
 
-// ── 天氣抓取（best-effort，失敗不影響回應）──────────────────────────
+// ── 天氣抓取 ─────────────────────────────────────────────────────────
 interface WeatherCtx {
   emoji: string
   temp: number
@@ -50,20 +50,69 @@ async function fetchWeather(lat: number, lng: number): Promise<WeatherCtx | null
   }
 }
 
-// ── 景點 context 格式化 ────────────────────────────────────────────
-function buildSpotsContext(spots: any[]): string {
+// ── 地區 Geocoding（Nominatim）─────────────────────────────────────
+interface BBox { north: number; south: number; east: number; west: number }
+
+async function tryGeocodeRegion(text: string): Promise<BBox | null> {
+  try {
+    const results = await $fetch<any[]>('https://nominatim.openstreetmap.org/search', {
+      params: { q: text, format: 'json', countrycodes: 'tw', limit: 1 },
+      headers: { 'User-Agent': 'BojjiTastyTrails/1.0' },
+    })
+    const r = results?.[0]
+    if (!r?.boundingbox) return null
+
+    const [south, north, west, east] = (r.boundingbox as string[]).map(Number) as [number, number, number, number]
+    // 太大（整個台灣以上）就忽略
+    if ((north - south) > 5 || (east - west) > 10) return null
+
+    // 點位太小（例如一個門牌）補一點 padding（~8km）
+    const pad = (north - south) < 0.05 ? 0.08 : 0
+    return { north: north + pad, south: south - pad, east: east + pad, west: west - pad }
+  } catch {
+    return null
+  }
+}
+
+// ── 從 DB 查指定區域的地點 ────────────────────────────────────────────
+async function fetchSpotsInArea(admin: any, bbox: BBox, userId: string): Promise<any[]> {
+  try {
+    const { data } = await admin
+      .from('spots')
+      .select('id, name, category, tags, notes, address, lat, lng')
+      .gte('lat', bbox.south).lte('lat', bbox.north)
+      .gte('lng', bbox.west).lte('lng', bbox.east)
+      .or(`is_public.eq.true,user_id.eq.${userId}`)
+      .order('created_at', { ascending: false })
+      .limit(40)
+    return data ?? []
+  } catch {
+    return []
+  }
+}
+
+// ── Context 格式化 ────────────────────────────────────────────────────
+const CAT_LABEL: Record<string, string> = {
+  food:          '美食',
+  landmark:      '景點',
+  entertainment: '娛樂',
+  shopping:      '購物',
+  accommodation: '住宿',
+}
+
+function buildSpotsContext(spots: any[], label: string): string {
   if (!spots.length) return ''
   const lines = spots.map((s, i) => {
-    const cat   = s.category === 'landmark' ? '景點' : s.category === 'entertainment' ? '娛樂' : '美食'
+    const cat   = CAT_LABEL[s.category] ?? s.category ?? '其他'
     const tags  = (s.tags ?? []).join('、') || '—'
     const notes = s.notes || '—'
     const addr  = s.address || '—'
     return `${i + 1}. ${s.name}（${cat}）｜地址：${addr}｜標籤：${tags}｜備註：${notes}`
   })
-  return `\n\n【地圖上可見地點（共 ${spots.length} 個）】\n${lines.join('\n')}`
+  return `\n\n【${label}（共 ${spots.length} 個）】\n${lines.join('\n')}`
 }
 
-// ── Main handler ──────────────────────────────────────────────────
+// ── Main handler ──────────────────────────────────────────────────────
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
 
@@ -81,13 +130,13 @@ export default defineEventHandler(async (event) => {
   const message = (body?.message ?? '').toString().trim().slice(0, 500)
   if (!message) throw createError({ statusCode: 400, statusMessage: '請輸入問題' })
 
-  const spots: any[] = Array.isArray(body?.spots) ? body.spots.slice(0, 30) : []
+  const viewportSpots: any[] = Array.isArray(body?.spots) ? body.spots.slice(0, 30) : []
   const lat = typeof body?.lat === 'number' ? body.lat : NaN
   const lng = typeof body?.lng === 'number' ? body.lng : NaN
 
   const today = new Date().toLocaleDateString('sv-SE')
 
-  // 取 bot_plan（無紀錄則用預設值）
+  // 取 bot_plan
   let dailyLimit  = DAILY_LIMIT
   let isUnlimited = false
   try {
@@ -126,37 +175,56 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  // 取天氣（有 lat/lng 才取）
-  const weather = !isNaN(lat) && !isNaN(lng) ? await fetchWeather(lat, lng) : null
+  // ── 地區解析 + DB 查詢（與天氣並行）────────────────────────────────
+  const [weather, regionBbox] = await Promise.all([
+    !isNaN(lat) && !isNaN(lng) ? fetchWeather(lat, lng) : Promise.resolve(null),
+    tryGeocodeRegion(message),
+  ])
 
-  // 天氣 context
+  // 優先用地區查詢結果，否則用前端傳來的 viewport spots
+  let regionSpots: any[] = []
+  let spotsLabel = '地圖上可見地點'
+
+  if (regionBbox) {
+    regionSpots = await fetchSpotsInArea(admin, regionBbox, user.id)
+    if (regionSpots.length) spotsLabel = '該地區資料庫地點'
+  }
+
+  // 合併：地區地點優先，再補 viewport 沒有的（依 id 去重）
+  const regionIds = new Set(regionSpots.map((s: any) => s.id))
+  const merged = [
+    ...regionSpots,
+    ...viewportSpots.filter((s: any) => !regionIds.has(s.id)),
+  ].slice(0, 40)
+
+  // ── Context 組裝 ─────────────────────────────────────────────────────
   const weatherCtx = weather
     ? `\n\n【當前天氣】${weather.emoji} ${weather.temp}°C ${weather.desc}｜降雨機率 ${weather.precipProb}%｜風速 ${weather.windSpeed} km/h\n` +
-      `規劃行程時請依天氣狀況建議：晴天（降雨 < 30%）優先推薦戶外景點；降雨機率 30–60% 提醒攜帶雨具；60% 以上優先推薦室內美食或有遮蔽場所。`
+      `規劃行程時依天氣建議：晴天（降雨 < 30%）優先戶外景點；30–60% 提醒帶傘；60% 以上優先室內場所。`
     : ''
 
-  // 景點 context
-  const spotsCtx = buildSpotsContext(spots)
+  const spotsCtx = buildSpotsContext(merged, spotsLabel)
 
-  // ── System Prompt ────────────────────────────────────────────────
+  // ── System Prompt ─────────────────────────────────────────────────────
   const systemPrompt = `你是「波吉小助手」，波吉的美食地圖網站的官方 AI 柯基犬助手🐶。
 
 【你只回答以下兩類問題，超出範圍請婉拒並引導回主題】
 1. 網站操作問題 → 嚴格按照【網站操作標準答案】逐字回答，不得自行發揮或補充
-2. 美食 / 旅遊行程規劃 → 根據提供的地點資料與天氣狀況回答
+2. 旅遊行程規劃（美食、景點、娛樂、購物、住宿等所有類型均接受）→ 根據提供的地點資料與天氣回答
 
 【如果用戶問的不屬於以上兩類】
-直接回應：「汪！這部分超出波吉的能力範圍，但我很擅長規劃美食行程！要試試嗎？🐾」
+直接回應：「汪！這部分超出波吉的能力範圍，但我很擅長規劃旅遊行程！要試試嗎？🐾」
 
-【行程規劃輸出格式】
-每個地點格式如下，每個地點各佔一行，地點之間用空行分隔：
+【行程規劃原則】
+- 優先使用【${spotsLabel}】中的真實資料
+- 若資料不足，可依你的知識補充地點，但補充的地點後面需加「（補充建議）」
+- 美食、景點、娛樂等不同類型地點可混搭排列，讓行程更豐富
 
-1. ⏰ 時間 → 📍 地點名稱 — 推薦原因（一句話）⏱ 停留約 X 分鐘
-2. ⏰ 時間 → 📍 地點名稱 — 推薦原因（一句話）⏱ 停留約 X 分鐘
+【行程輸出格式】
+1. ⏰ 時間 → 📍 地點名稱（類型）— 推薦原因（一句話）⏱ 停留約 X 分鐘
 
-天氣提醒（若有天氣資料）：用空行與行程分隔，獨立一行。
-優先使用【地圖上可見地點】的資料，不足才可補充其他地點。
-不超過 400 字，不要加標題或分節符號。
+若有天氣資料，天氣提醒必須放在所有行程項目的【最前面】或【最後面】，絕對不可以插在行程中間。
+不超過 450 字，不加標題或分節符號。
 
 【語言與語氣】
 繁體中文，親切自然，偶爾使用「汪！」或「🐾」，不要過度賣萌。
@@ -165,7 +233,7 @@ export default defineEventHandler(async (event) => {
 ${SITE_FAQ}
 ${weatherCtx}${spotsCtx}`
 
-  // Call Groq
+  // ── Call Groq ─────────────────────────────────────────────────────────
   let answer: string
   try {
     const result = await $fetch<any>(GROQ_URL, {
@@ -175,7 +243,7 @@ ${weatherCtx}${spotsCtx}`
         'Content-Type': 'application/json',
       },
       body: {
-        model:       'llama-3.1-8b-instant',
+        model:       'llama-3.3-70b-versatile',
         messages:    [
           { role: 'system', content: systemPrompt },
           { role: 'user',   content: message },
@@ -189,7 +257,7 @@ ${weatherCtx}${spotsCtx}`
     throw createError({ statusCode: 502, statusMessage: '波吉現在太忙了，請稍後再試 🐾' })
   }
 
-  // Increment usage（best-effort）
+  // 更新用量
   try {
     await admin.from('bot_usage').upsert(
       { user_id: user.id, date: today, count: currentCount + 1 },

@@ -59,8 +59,11 @@
             :fly-to="effectiveFlyTo"
             :bottom-inset="mobileBottomInset"
             :category-filters="sidebarCategories"
-            :trip-waypoints="activeTripWaypoints"
-            :trip-route-geometry="tripRouteGeometry"
+            :trip-waypoints="sidebarTabIsTrip ? activeTripWaypoints : []"
+            :trip-route-geometry="sidebarTabIsTrip ? tripRouteGeometry : null"
+            :trip-tab-active="sidebarTabIsTrip"
+            :reload-trigger="mapReloadTrigger"
+            :fly-to-trip-trigger="flyToTripTrigger"
             @spots-updated="onSpotsUpdated"
             @center-changed="onCenterChanged"
             @xp-gained="onXpGained"
@@ -87,7 +90,7 @@
             :loading="spotsLoading"
             :current-user-id="user?.id ?? ''"
             :token="token ?? ''"
-            :pending-spot="pendingSpot"
+            :pending-spot="!isMobile ? pendingSpot : null"
             @select="handleSpotSelect"
             @view-comments="onSidebarViewComments"
             @write-comment="onSidebarWriteComment"
@@ -96,6 +99,7 @@
             @waypoints-updated="onWaypointsUpdated"
             @route-ready="onRouteReady"
             @route-cleared="onRouteCleared"
+            @tab-changed="sidebarTabIsTrip = ($event === 'trip')"
           />
         </div>
       </aside>
@@ -142,7 +146,7 @@
               :loading="spotsLoading"
               :current-user-id="user?.id ?? ''"
               :token="token ?? ''"
-              :pending-spot="pendingSpot"
+              :pending-spot="isMobile ? pendingSpot : null"
               @select="handleSpotSelect"
               @view-comments="onSidebarViewComments"
               @write-comment="onSidebarWriteComment"
@@ -151,6 +155,7 @@
               @waypoints-updated="onWaypointsUpdated"
               @route-ready="onRouteReady"
               @route-cleared="onRouteCleared"
+              @tab-changed="sidebarTabIsTrip = ($event === 'trip')"
             />
           </div>
 
@@ -215,6 +220,9 @@ const sidebarCategories   = ref<string[]>(['food'])
 const activeTripWaypoints = ref<TripWaypoint[]>([])
 const tripRouteGeometry   = ref<any | null>(null)
 const pendingSpot         = ref<PendingSpot | null>(null)
+const sidebarTabIsTrip    = ref(false)
+const mapReloadTrigger    = ref(0)
+const flyToTripTrigger    = ref(0)
 
 const { show, userLocation, requestIfNeeded, allow, deny } = useGeoModal()
 
@@ -337,10 +345,9 @@ async function processPendingInvites(): Promise<void> {
 }
 
 function onAddToTrip(spot: PendingSpot): void {
-  pendingSpot.value = spot
-  // Auto-open sidebar
+  sidebarTabIsTrip.value = true  // ensure button shows next time popup opens
   sidebarOpen.value = true
-  // Clear pendingSpot after one tick so watch fires again on next addition
+  pendingSpot.value = spot
   nextTick(() => { pendingSpot.value = null })
 }
 
@@ -355,4 +362,31 @@ function onRouteReady(geometry: any): void {
 function onRouteCleared(): void {
   tripRouteGeometry.value = null
 }
+
+function reloadMap(): void {
+  activeTripWaypoints.value = []
+  tripRouteGeometry.value = null
+  mapReloadTrigger.value++
+}
+
+const tripTabJustOpened = ref(false)
+
+watch(sidebarTabIsTrip, (isTrip) => {
+  if (isTrip) {
+    if (activeTripWaypoints.value.length > 0) {
+      flyToTripTrigger.value++
+    } else {
+      tripTabJustOpened.value = true
+    }
+  } else {
+    tripTabJustOpened.value = false
+  }
+})
+
+watch(activeTripWaypoints, (wps) => {
+  if (tripTabJustOpened.value && wps.length > 0) {
+    flyToTripTrigger.value++
+    tripTabJustOpened.value = false
+  }
+}, { deep: true })
 </script>

@@ -89,7 +89,7 @@
           <!-- Page navigation -->
           <div class="flex items-center justify-between mb-2.5">
             <p class="text-[10px] text-food-muted">
-              {{ PRESET_PAGES[presetPage].label }}（{{ presetPage + 1 }} / {{ PRESET_PAGES.length }}）
+              {{ currentPresetPage.label }}（{{ presetPage + 1 }} / {{ PRESET_PAGES.length }}）
             </p>
             <div class="flex items-center gap-1.5">
               <button
@@ -117,7 +117,7 @@
           <!-- Avatar grid -->
           <div class="grid grid-cols-4 gap-3">
             <button
-              v-for="preset in PRESET_PAGES[presetPage].presets"
+              v-for="preset in currentPresetPage.presets"
               :key="preset.id"
               class="relative rounded-full overflow-hidden border-2 transition-all duration-200 active:scale-95 aspect-square"
               :class="pendingPresetUrl === preset.url
@@ -451,6 +451,7 @@ const PRESET_PAGES = [
 ] as const
 
 const presetPage        = ref(0)
+const currentPresetPage = computed(() => PRESET_PAGES[presetPage.value]!)
 const pendingPresetUrl  = ref<string | null>(null)
 const presetSaving      = ref(false)
 const showPresetPicker  = ref(false)

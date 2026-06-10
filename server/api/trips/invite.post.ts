@@ -15,7 +15,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: '無權限產生邀請連結' })
 
   // Generate URL-safe token server-side (avoid relying on DB-level encode functions)
-  const rawToken = Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString('base64')
+  const bytes = crypto.getRandomValues(new Uint8Array(24))
+  const rawToken = btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 
   const { data: invite, error } = await admin

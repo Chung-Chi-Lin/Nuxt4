@@ -35,7 +35,7 @@ function lookup(map: Record<number, string>, code: number): string {
   if (map[code] !== undefined) return map[code]
   const keys = Object.keys(map).map(Number).sort((a, b) => b - a)
   for (const k of keys) {
-    if (code >= k) return map[k]
+    if (code >= k) return map[k]!
   }
   return ''
 }
