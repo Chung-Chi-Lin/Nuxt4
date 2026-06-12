@@ -1,103 +1,86 @@
 <template>
-  <Teleport to="body">
-    <div class="fixed inset-0 z-[9999] flex items-center justify-center px-4">
-      <div class="absolute inset-0 bg-black/40" @click="emit('close')" />
+  <el-dialog
+    v-model="dialogVisible"
+    title="回報標記"
+    width="400px"
+    align-center
+    @closed="emit('close')"
+  >
+    <!-- 成功狀態 -->
+    <el-result
+      v-if="done"
+      icon="success"
+      title="回報已送出，謝謝！"
+      sub-title="我們會盡快審核這個標記。"
+    />
 
-      <div class="relative bg-food-surface rounded-2xl shadow-2xl border border-food-border w-full max-w-sm p-6 flex flex-col gap-4">
-        <!-- Header -->
-        <div class="flex items-center justify-between">
-          <h3 class="font-bold text-food-brown text-base">回報標記</h3>
-          <button
-            class="w-7 h-7 rounded-full flex items-center justify-center text-food-muted hover:text-food-brown hover:bg-food-border/50 transition text-sm font-bold"
-            @click="emit('close')"
-          >✕</button>
-        </div>
+    <!-- 回報表單 -->
+    <el-form v-else ref="formRef" :model="form" :rules="rules" label-position="top">
+      <el-form-item label="回報原因" prop="reason">
+        <!-- el-select：下拉選單，placeholder 為未選狀態提示 -->
+        <el-select v-model="form.reason" placeholder="請選擇原因…" style="width: 100%">
+          <el-option label="店家已暫停或停止營業" value="closed" />
+          <el-option label="資訊錯誤（位置、名稱等）" value="wrong_info" />
+          <el-option label="無意義或垃圾標記" value="spam" />
+          <el-option label="與其他標記重複" value="duplicate" />
+          <el-option label="不當內容" value="inappropriate" />
+          <el-option label="其他" value="other" />
+        </el-select>
+      </el-form-item>
 
-        <!-- Reason -->
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-bold text-food-brown">回報原因 <span class="text-food-red">*</span></label>
-          <select
-            v-model="reason"
-            class="w-full px-3 py-2.5 rounded-xl border border-food-border bg-food-cream text-sm text-food-brown focus:outline-none focus:border-food-caramel appearance-none cursor-pointer"
-          >
-            <option value="" disabled>請選擇原因…</option>
-            <option value="closed">店家已暫停或停止營業</option>
-            <option value="wrong_info">資訊錯誤（位置、名稱等）</option>
-            <option value="spam">無意義或垃圾標記</option>
-            <option value="duplicate">與其他標記重複</option>
-            <option value="inappropriate">不當內容</option>
-            <option value="other">其他</option>
-          </select>
-        </div>
+      <el-form-item label="補充說明（選填）">
+        <el-input
+          v-model="form.note"
+          type="textarea"
+          :rows="3"
+          maxlength="300"
+          show-word-limit
+          resize="none"
+          placeholder="描述問題，例如：地址有誤、已於 2025 年歇業…"
+        />
+      </el-form-item>
+    </el-form>
 
-        <!-- Note -->
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-bold text-food-brown">補充說明 <span class="text-food-muted font-normal">（選填）</span></label>
-          <textarea
-            v-model="note"
-            rows="3"
-            maxlength="300"
-            placeholder="描述問題，例如：地址有誤、已於 2025 年歇業…"
-            class="w-full px-3 py-2.5 rounded-xl border border-food-border bg-food-cream text-sm text-food-brown placeholder-food-border focus:outline-none focus:border-food-caramel resize-none leading-relaxed"
-          />
-          <p class="text-right text-[10px] text-food-muted">{{ note.length }}/300</p>
-        </div>
-
-        <!-- Error -->
-        <p v-if="errorMsg" class="text-xs text-food-red">{{ errorMsg }}</p>
-
-        <!-- Success -->
-        <div v-if="done" class="flex flex-col items-center gap-2 py-2">
-          <span class="text-3xl">✅</span>
-          <p class="text-sm font-bold text-food-brown">回報已送出，謝謝！</p>
-          <p class="text-xs text-food-muted">我們會盡快審核這個標記。</p>
-        </div>
-
-        <!-- Actions -->
-        <div v-if="!done" class="flex gap-3">
-          <button
-            class="flex-1 py-2.5 rounded-xl border border-food-border text-food-muted text-sm font-bold hover:bg-food-beige transition"
-            @click="emit('close')"
-          >取消</button>
-          <button
-            class="flex-1 py-2.5 rounded-xl bg-food-caramel text-white text-sm font-bold hover:bg-food-orange transition disabled:opacity-50"
-            :disabled="!reason || loading"
-            @click="submit"
-          >{{ loading ? '送出中…' : '送出回報' }}</button>
-        </div>
-
-        <button v-if="done" class="w-full py-2.5 rounded-xl bg-food-caramel text-white text-sm font-bold" @click="emit('close')">
-          關閉
-        </button>
-      </div>
-    </div>
-  </Teleport>
+    <template #footer>
+      <el-button v-if="done" type="primary" @click="dialogVisible = false">關閉</el-button>
+      <template v-else>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="loading" @click="submit">送出回報</el-button>
+      </template>
+    </template>
+  </el-dialog>
 </template>
 
 <script lang="ts" setup>
+import type { FormInstance, FormRules } from 'element-plus'
+
 const props = defineProps<{ spotId: string; token: string }>()
 const emit  = defineEmits<{ close: [] }>()
 
-const reason   = ref('')
-const note     = ref('')
-const loading  = ref(false)
-const done     = ref(false)
-const errorMsg = ref('')
+const dialogVisible = ref(true)
+const formRef = ref<FormInstance>()
+const form    = reactive({ reason: '', note: '' })
+const loading = ref(false)
+const done    = ref(false)
+
+const rules: FormRules = {
+  reason: [{ required: true, message: '請選擇回報原因', trigger: 'change' }],
+}
 
 async function submit(): Promise<void> {
-  if (!reason.value || loading.value) return
+  const valid = await formRef.value?.validate().catch(() => false)
+  if (!valid || loading.value) return
   loading.value = true
-  errorMsg.value = ''
   try {
     await $fetch('/api/reports', {
       method: 'POST',
       headers: { Authorization: `Bearer ${props.token}` },
-      body: { spotId: props.spotId, reason: reason.value, note: note.value },
+      body: { spotId: props.spotId, reason: form.reason, note: form.note },
     })
     done.value = true
   } catch (err: unknown) {
     const e = err as { data?: { statusMessage?: string } }
-    errorMsg.value = e.data?.statusMessage ?? '送出失敗，請稍後再試'
+    ElMessage.error(e.data?.statusMessage ?? '送出失敗，請稍後再試')
   } finally {
     loading.value = false
   }

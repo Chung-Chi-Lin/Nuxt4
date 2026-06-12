@@ -11,169 +11,191 @@
 
     <div class="max-w-3xl mx-auto px-4 py-6 space-y-4">
 
-      <!-- 頁面導航 -->
       <AdminNav :pending-spot="spotPendingCount" :pending-comment="commentPendingCount" />
 
-      <!-- 區塊內 Tabs（回報管理子分類） -->
-      <div class="flex gap-1 bg-white rounded-xl border border-gray-200 p-1 shadow-sm">
-        <button
-          v-for="tab in tabs" :key="tab.key"
-          @click="switchTab(tab.key)"
-          :class="activeTab === tab.key
-            ? 'bg-gray-800 text-white shadow-sm'
-            : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'"
-          class="flex-1 py-2 px-3 rounded-lg text-sm font-bold transition text-center"
-        >
-          {{ tab.label }}
-          <span v-if="tab.pendingCount > 0"
-            class="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-black"
-            :class="activeTab === tab.key ? 'bg-white text-gray-800' : 'bg-orange-100 text-orange-600'"
-          >{{ tab.pendingCount }}</span>
-        </button>
-      </div>
+      <!--
+        el-tabs：v-model 綁定 activeTab，點擊 tab 自動更新並觸發 @tab-change
+        @tab-change 在 v-model 更新後觸發，所以 fetchData() 能讀到新的 activeTab
+      -->
+      <el-tabs v-model="activeTab" @tab-change="fetchData">
 
-      <!-- Status filter -->
-      <div class="flex gap-1.5 flex-wrap">
-        <button
-          v-for="f in filters" :key="f.value"
-          @click="statusFilter = f.value; fetchData()"
-          :class="statusFilter === f.value
-            ? 'bg-gray-800 text-white border-gray-800'
-            : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'"
-          class="px-3 py-1.5 rounded-lg text-xs font-bold border transition"
-        >{{ f.label }}</button>
-      </div>
+        <!-- 📍 標記回報 -->
+        <el-tab-pane name="spot-reports">
+          <template #label>
+            📍 標記回報
+            <!--
+              el-badge：:value 顯示數字，超過 max 會顯示 max+
+              type="danger" → 紅色
+            -->
+            <el-badge v-if="spotPendingCount > 0" :value="spotPendingCount" type="danger" class="ml-2" />
+          </template>
 
-      <!-- Loading -->
-      <div v-if="loading" class="space-y-3">
-        <div v-for="i in 3" :key="i" class="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
-          <div class="flex gap-3">
-            <div class="w-10 h-10 rounded-lg bg-gray-100 shrink-0" />
-            <div class="flex-1 space-y-2">
-              <div class="h-3 bg-gray-100 rounded w-1/3" />
-              <div class="h-2.5 bg-gray-100 rounded w-2/3" />
-              <div class="h-2 bg-gray-100 rounded w-1/2" />
+          <div class="space-y-4 pt-4">
+            <!-- el-radio-group + el-radio-button：按鈕樣式的單選群組，@change 在值變更時觸發 -->
+            <el-radio-group v-model="statusFilter" size="small" @change="fetchData">
+              <el-radio-button value="pending">待審核</el-radio-button>
+              <el-radio-button value="resolved">已解決</el-radio-button>
+              <el-radio-button value="dismissed">已駁回</el-radio-button>
+              <el-radio-button value="all">全部</el-radio-button>
+            </el-radio-group>
+
+            <!-- Loading：el-skeleton 顯示骨架屏，:rows 控制行數，animated 開啟動畫 -->
+            <div v-if="loading" class="space-y-3">
+              <el-skeleton v-for="i in 3" :key="i" :rows="3" animated />
             </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- Empty -->
-      <div v-else-if="!reports.length" class="bg-white rounded-xl border border-gray-200 py-12 text-center">
-        <div class="text-4xl mb-3">✅</div>
-        <p class="text-sm font-bold text-gray-700 mb-1">目前沒有回報</p>
-        <p class="text-xs text-gray-400">{{ statusFilter === 'pending' ? '沒有待審核項目' : '沒有符合篩選的項目' }}</p>
-      </div>
+            <!-- Empty：el-empty 內建空狀態元件 -->
+            <el-empty v-else-if="!reports.length" description="目前沒有回報" />
 
-      <!-- ── 標記回報列表 ── -->
-      <template v-else-if="activeTab === 'spot-reports'">
-        <div v-for="r in reports as SpotReport[]" :key="r.id"
-          class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div class="px-4 pt-4 pb-3">
-            <!-- Status badge + spot -->
-            <div class="flex items-start gap-3">
-              <span class="text-2xl shrink-0 mt-0.5">{{ r.spot.emoji }}</span>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="font-bold text-sm text-gray-800 truncate">{{ r.spot.name }}</span>
-                  <StatusBadge :status="r.status" />
+            <!-- 標記回報卡片列表 -->
+            <template v-else>
+              <div v-for="r in reports as SpotReport[]" :key="r.id"
+                class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div class="px-4 pt-4 pb-3">
+                  <div class="flex items-start gap-3">
+                    <span class="text-2xl shrink-0 mt-0.5">{{ r.spot.emoji }}</span>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-bold text-sm text-gray-800 truncate">{{ r.spot.name }}</span>
+                        <!--
+                          el-tag：type 控制顏色語意
+                            success → 綠（已解決）
+                            info    → 灰（已駁回）
+                            warning → 橘（待審核）
+                        -->
+                        <el-tag
+                          :type="r.status === 'resolved' ? 'success' : r.status === 'dismissed' ? 'info' : 'warning'"
+                          size="small"
+                        >
+                          {{ r.status === 'resolved' ? '已解決' : r.status === 'dismissed' ? '已駁回' : '待審核' }}
+                        </el-tag>
+                      </div>
+                      <p class="text-xs text-gray-500 mt-0.5">
+                        <span class="font-medium text-orange-600">{{ reasonLabel(r.reason, 'spot') }}</span>
+                        　•　回報者：{{ r.reporter.username }}
+                        　•　{{ relativeTime(r.created_at) }}
+                      </p>
+                      <p v-if="r.note" class="text-xs text-gray-500 mt-1.5 bg-gray-50 rounded-lg px-2.5 py-1.5 leading-relaxed">
+                        💬 {{ r.note }}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <p class="text-xs text-gray-500 mt-0.5">
-                  <span class="font-medium text-orange-600">{{ reasonLabel(r.reason, 'spot') }}</span>
-                  　•　 回報者：{{ r.reporter.username }}
-                  　•　 {{ relativeTime(r.created_at) }}
-                </p>
-                <p v-if="r.note" class="text-xs text-gray-500 mt-1.5 bg-gray-50 rounded-lg px-2.5 py-1.5 leading-relaxed">
-                  💬 {{ r.note }}
-                </p>
+
+                <div v-if="r.status === 'pending'" class="px-4 py-2.5 border-t border-gray-100 bg-gray-50 flex flex-wrap items-center gap-2">
+                  <a v-if="r.spot.lat && r.spot.lng"
+                    :href="`/map?lat=${r.spot.lat}&lng=${r.spot.lng}`"
+                    target="_blank"
+                    class="text-xs text-blue-500 hover:text-blue-700 font-bold mr-auto"
+                  >📍 查看位置</a>
+                  <span v-else class="mr-auto" />
+
+                  <el-button size="small" :disabled="processingId === r.id" @click="updateSpotReport(r.id, 'dismissed', false, r.spot.id)">
+                    ✕ 駁回
+                  </el-button>
+                  <!--
+                    el-button type="danger"：紅色危險按鈕，搭配 ElMessageBox.confirm 做二次確認
+                  -->
+                  <el-button
+                    size="small"
+                    type="danger"
+                    :disabled="processingId === r.id"
+                    :loading="processingId === r.id"
+                    @click="updateSpotReport(r.id, 'resolved', true, r.spot.id)"
+                  >🗑 刪除標記並解決</el-button>
+                  <el-button
+                    size="small"
+                    type="success"
+                    :disabled="processingId === r.id"
+                    @click="updateSpotReport(r.id, 'resolved', false, r.spot.id)"
+                  >✓ 標記已解決</el-button>
+                </div>
               </div>
+            </template>
+          </div>
+        </el-tab-pane>
+
+        <!-- 💬 評論回報 -->
+        <el-tab-pane name="comment-reports">
+          <template #label>
+            💬 評論回報
+            <el-badge v-if="commentPendingCount > 0" :value="commentPendingCount" type="danger" class="ml-2" />
+          </template>
+
+          <div class="space-y-4 pt-4">
+            <el-radio-group v-model="statusFilter" size="small" @change="fetchData">
+              <el-radio-button value="pending">待審核</el-radio-button>
+              <el-radio-button value="resolved">已解決</el-radio-button>
+              <el-radio-button value="dismissed">已駁回</el-radio-button>
+              <el-radio-button value="all">全部</el-radio-button>
+            </el-radio-group>
+
+            <div v-if="loading" class="space-y-3">
+              <el-skeleton v-for="i in 3" :key="i" :rows="3" animated />
             </div>
-          </div>
 
-          <!-- Actions -->
-          <div v-if="r.status === 'pending'" class="px-4 py-2.5 border-t border-gray-100 bg-gray-50 flex flex-wrap items-center gap-2">
-            <!-- 查看位置 -->
-            <a v-if="r.spot.lat && r.spot.lng"
-              :href="`/map?lat=${r.spot.lat}&lng=${r.spot.lng}`"
-              target="_blank"
-              class="text-xs text-blue-500 hover:text-blue-700 font-bold mr-auto"
-            >📍 查看位置</a>
-            <span v-else class="mr-auto" />
-            <button
-              class="px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition disabled:opacity-50"
-              :disabled="processingId === r.id"
-              @click="updateSpotReport(r.id, 'dismissed', false, r.spot.id)"
-            >✕ 駁回</button>
-            <button
-              class="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-50"
-              :disabled="processingId === r.id"
-              @click="updateSpotReport(r.id, 'resolved', true, r.spot.id)"
-            >{{ processingId === r.id ? '處理中…' : '🗑 刪除標記並解決' }}</button>
-            <button
-              class="px-3 py-1.5 rounded-lg text-xs font-bold bg-green-600 text-white hover:bg-green-700 transition disabled:opacity-50"
-              :disabled="processingId === r.id"
-              @click="updateSpotReport(r.id, 'resolved', false, r.spot.id)"
-            >✓ 標記已解決</button>
-          </div>
-        </div>
-      </template>
+            <el-empty v-else-if="!reports.length" description="目前沒有回報" />
 
-      <!-- ── 評論回報列表 ── -->
-      <template v-else>
-        <div v-for="r in reports as CommentReport[]" :key="r.id"
-          class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div class="px-4 pt-4 pb-3">
-            <div class="flex items-start gap-3">
-              <span class="text-2xl shrink-0 mt-0.5">💬</span>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="font-bold text-sm text-gray-800">
-                    {{ r.comment?.spot.emoji }} {{ r.comment?.spot.name ?? '（標記已刪除）' }}
-                  </span>
-                  <StatusBadge :status="r.status" />
+            <template v-else>
+              <div v-for="r in reports as CommentReport[]" :key="r.id"
+                class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div class="px-4 pt-4 pb-3">
+                  <div class="flex items-start gap-3">
+                    <span class="text-2xl shrink-0 mt-0.5">💬</span>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-bold text-sm text-gray-800">
+                          {{ r.comment?.spot.emoji }} {{ r.comment?.spot.name ?? '（標記已刪除）' }}
+                        </span>
+                        <el-tag
+                          :type="r.status === 'resolved' ? 'success' : r.status === 'dismissed' ? 'info' : 'warning'"
+                          size="small"
+                        >
+                          {{ r.status === 'resolved' ? '已解決' : r.status === 'dismissed' ? '已駁回' : '待審核' }}
+                        </el-tag>
+                      </div>
+                      <p class="text-xs text-gray-500 mt-0.5">
+                        <span class="font-medium text-orange-600">{{ reasonLabel(r.reason, 'comment') }}</span>
+                        　•　回報者：{{ r.reporter.username }}
+                        　•　{{ relativeTime(r.created_at) }}
+                      </p>
+                      <div v-if="r.comment" class="mt-2 bg-gray-50 rounded-lg px-2.5 py-2 border border-gray-100">
+                        <p class="text-[10px] text-gray-400 mb-0.5">評論者：{{ r.comment.author.username }}</p>
+                        <p class="text-xs text-gray-700 leading-relaxed break-words">{{ r.comment.content }}</p>
+                      </div>
+                      <p v-else class="text-xs text-gray-400 mt-1 italic">（評論已被刪除）</p>
+                      <p v-if="r.note" class="text-xs text-gray-500 mt-1.5 bg-yellow-50 rounded-lg px-2.5 py-1.5 leading-relaxed border border-yellow-100">
+                        💬 補充：{{ r.note }}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <p class="text-xs text-gray-500 mt-0.5">
-                  <span class="font-medium text-orange-600">{{ reasonLabel(r.reason, 'comment') }}</span>
-                  　•　 回報者：{{ r.reporter.username }}
-                  　•　 {{ relativeTime(r.created_at) }}
-                </p>
 
-                <!-- Comment content -->
-                <div v-if="r.comment" class="mt-2 bg-gray-50 rounded-lg px-2.5 py-2 border border-gray-100">
-                  <p class="text-[10px] text-gray-400 mb-0.5">評論者：{{ r.comment.author.username }}</p>
-                  <p class="text-xs text-gray-700 leading-relaxed break-words">{{ r.comment.content }}</p>
+                <div v-if="r.status === 'pending'" class="px-4 py-2.5 border-t border-gray-100 bg-gray-50 flex flex-wrap justify-end gap-2">
+                  <el-button size="small" :disabled="processingId === r.id" @click="updateCommentReport(r.id, 'dismissed', false, r.comment_id)">
+                    ✕ 駁回
+                  </el-button>
+                  <el-button
+                    v-if="r.comment"
+                    size="small"
+                    type="danger"
+                    :disabled="processingId === r.id"
+                    :loading="processingId === r.id"
+                    @click="updateCommentReport(r.id, 'resolved', true, r.comment_id)"
+                  >🗑 解決並刪除評論</el-button>
+                  <el-button
+                    size="small"
+                    type="success"
+                    :disabled="processingId === r.id"
+                    @click="updateCommentReport(r.id, 'resolved', false, r.comment_id)"
+                  >✓ 標記已解決</el-button>
                 </div>
-                <p v-else class="text-xs text-gray-400 mt-1 italic">（評論已被刪除）</p>
-
-                <p v-if="r.note" class="text-xs text-gray-500 mt-1.5 bg-yellow-50 rounded-lg px-2.5 py-1.5 leading-relaxed border border-yellow-100">
-                  💬 補充：{{ r.note }}
-                </p>
               </div>
-            </div>
+            </template>
           </div>
+        </el-tab-pane>
 
-          <!-- Actions -->
-          <div v-if="r.status === 'pending'" class="px-4 py-2.5 border-t border-gray-100 bg-gray-50 flex flex-wrap justify-end gap-2">
-            <button
-              class="px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition disabled:opacity-50"
-              :disabled="processingId === r.id"
-              @click="updateCommentReport(r.id, 'dismissed', false, r.comment_id)"
-            >✕ 駁回</button>
-            <button
-              v-if="r.comment"
-              class="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700 transition disabled:opacity-50"
-              :disabled="processingId === r.id"
-              @click="updateCommentReport(r.id, 'resolved', true, r.comment_id)"
-            >{{ processingId === r.id ? '處理中…' : '🗑 解決並刪除評論' }}</button>
-            <button
-              class="px-3 py-1.5 rounded-lg text-xs font-bold bg-green-600 text-white hover:bg-green-700 transition disabled:opacity-50"
-              :disabled="processingId === r.id"
-              @click="updateCommentReport(r.id, 'resolved', false, r.comment_id)"
-            >✓ 標記已解決</button>
-          </div>
-        </div>
-      </template>
-
+      </el-tabs>
     </div>
   </div>
 </template>
@@ -182,57 +204,28 @@
 definePageMeta({ middleware: 'admin' })
 useHead({ title: '後台管理 — 波吉的美食地圖' })
 
-// ── Types ─────────────────────────────────────────────────────
 interface SpotReport {
-  id: string
-  reason: string
-  note: string | null
-  status: string
-  created_at: string
+  id: string; reason: string; note: string | null; status: string; created_at: string
   spot:     { id: string; name: string; emoji: string; lat?: number; lng?: number }
   reporter: { username: string }
 }
 
 interface CommentReport {
-  id: string
-  reason: string
-  note: string | null
-  status: string
-  created_at: string
+  id: string; reason: string; note: string | null; status: string; created_at: string
   comment_id: string
-  reporter:  { username: string }
-  comment: {
-    id: string
-    content: string
-    author:  { username: string }
-    spot:    { name: string; emoji: string }
-  } | null
+  reporter: { username: string }
+  comment: { id: string; content: string; author: { username: string }; spot: { name: string; emoji: string } } | null
 }
 
-// ── State ─────────────────────────────────────────────────────
-const token       = useCookie('auth_token')
-const activeTab   = ref<'spot-reports' | 'comment-reports'>('spot-reports')
-const statusFilter = ref('pending')
-const loading     = ref(false)
-const reports     = ref<SpotReport[] | CommentReport[]>([])
-const processingId = ref<string | null>(null)
-
-const spotPendingCount   = ref(0)
+const token          = useCookie('auth_token')
+const activeTab      = ref<string>('spot-reports')
+const statusFilter   = ref('pending')
+const loading        = ref(false)
+const reports        = ref<SpotReport[] | CommentReport[]>([])
+const processingId   = ref<string | null>(null)
+const spotPendingCount    = ref(0)
 const commentPendingCount = ref(0)
 
-const tabs = computed(() => [
-  { key: 'spot-reports' as const,    label: '📍 標記回報',  pendingCount: spotPendingCount.value },
-  { key: 'comment-reports' as const, label: '💬 評論回報',  pendingCount: commentPendingCount.value },
-])
-
-const filters = [
-  { value: 'pending',   label: '待審核' },
-  { value: 'resolved',  label: '已解決' },
-  { value: 'dismissed', label: '已駁回' },
-  { value: 'all',       label: '全部' },
-]
-
-// ── Data fetching ──────────────────────────────────────────────
 const headers = computed(() => ({ Authorization: `Bearer ${token.value ?? ''}` }))
 
 async function fetchData(): Promise<void> {
@@ -262,18 +255,22 @@ async function fetchPendingCounts(): Promise<void> {
   if (cr.status === 'fulfilled') commentPendingCount.value = cr.value.reports.length
 }
 
-function switchTab(tab: 'spot-reports' | 'comment-reports') {
-  activeTab.value = tab
-  fetchData()
-}
+onMounted(() => { fetchData(); fetchPendingCounts() })
 
-onMounted(() => {
-  fetchData()
-  fetchPendingCounts()
-})
-
-// ── Actions ───────────────────────────────────────────────────
 async function updateSpotReport(id: string, status: string, deleteSpot = false, spotId?: string): Promise<void> {
+  if (deleteSpot) {
+    // ElMessageBox.confirm：程式觸發的確認對話框，比 alert/confirm 更符合 Element Plus 風格
+    try {
+      await ElMessageBox.confirm('確定要刪除此標記並解決回報嗎？此操作無法復原。', '確認刪除', {
+        type: 'warning',
+        confirmButtonText: '刪除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger',
+      })
+    } catch {
+      return
+    }
+  }
   processingId.value = id
   try {
     await $fetch(`/api/admin/spot-reports/${id}`, {
@@ -288,6 +285,18 @@ async function updateSpotReport(id: string, status: string, deleteSpot = false, 
 }
 
 async function updateCommentReport(id: string, status: string, deleteComment: boolean, commentId: string): Promise<void> {
+  if (deleteComment) {
+    try {
+      await ElMessageBox.confirm('確定要刪除此評論並解決回報嗎？此操作無法復原。', '確認刪除', {
+        type: 'warning',
+        confirmButtonText: '刪除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger',
+      })
+    } catch {
+      return
+    }
+  }
   processingId.value = id
   try {
     await $fetch(`/api/admin/comment-reports/${id}`, {
@@ -301,27 +310,17 @@ async function updateCommentReport(id: string, status: string, deleteComment: bo
   }
 }
 
-// ── Helpers ───────────────────────────────────────────────────
 const SPOT_REASONS: Record<string, string> = {
-  closed:       '店家停業',
-  wrong_info:   '資訊錯誤',
-  spam:         '垃圾標記',
-  duplicate:    '重複標記',
-  inappropriate:'不當內容',
-  other:        '其他',
+  closed: '店家停業', wrong_info: '資訊錯誤', spam: '垃圾標記',
+  duplicate: '重複標記', inappropriate: '不當內容', other: '其他',
 }
 const COMMENT_REASONS: Record<string, string> = {
-  spam:          '垃圾訊息',
-  inappropriate: '不雅言語',
-  harassment:    '騷擾內容',
-  misinformation:'錯誤資訊',
-  other:         '其他',
+  spam: '垃圾訊息', inappropriate: '不雅言語', harassment: '騷擾內容',
+  misinformation: '錯誤資訊', other: '其他',
 }
 
 function reasonLabel(reason: string, type: 'spot' | 'comment'): string {
-  return type === 'spot'
-    ? (SPOT_REASONS[reason] ?? reason)
-    : (COMMENT_REASONS[reason] ?? reason)
+  return type === 'spot' ? (SPOT_REASONS[reason] ?? reason) : (COMMENT_REASONS[reason] ?? reason)
 }
 
 function relativeTime(iso: string): string {
