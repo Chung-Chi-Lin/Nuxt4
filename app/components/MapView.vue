@@ -229,6 +229,9 @@ const emit = defineEmits<{
   'add-to-trip':   [spot: PendingSpot]
 }>()
 
+const msg = useMessage()
+const { authFetch } = useAuthFetch(computed(() => props.token))
+
 // ── 地圖樣式 ─────────────────────────────────────────────────
 const TILE_STYLES = [
   {
@@ -454,7 +457,7 @@ watch(() => props.bottomInset, adjustBottomControls)
 function addDemoMarker(spot: Spot) {
   if (!L || !demoSpotLayer) return
   const icon = L.divIcon({
-    html: `<span style="font-size:26px;line-height:1;">${spot.emoji}</span>`,
+    html: `<span aria-hidden="true" style="font-size:26px;line-height:1;">${escapeHtml(spot.emoji)}</span>`,
     className: 'food-marker',
     iconSize: [32, 32],
     iconAnchor: [16, 16],
@@ -462,8 +465,8 @@ function addDemoMarker(spot: Spot) {
   L.marker([spot.lat, spot.lng], { icon })
     .bindPopup(`
       <div style="font-family:'Noto Sans TC',sans-serif;min-width:120px">
-        <div style="font-weight:700;font-size:14px;margin-bottom:4px">${spot.emoji} ${spot.name}</div>
-        <div style="font-size:12px;color:#9C7B5C">${spot.desc}</div>
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">${escapeHtml(spot.emoji)} ${escapeHtml(spot.name)}</div>
+        <div style="font-size:12px;color:#9C7B5C">${escapeHtml(spot.desc)}</div>
       </div>`)
     .addTo(demoSpotLayer)
 }
@@ -477,8 +480,7 @@ async function fetchViewportSpots() {
   emit('spots-updated', { spots: [], loading: true })
 
   try {
-    const { spots } = await $fetch<{ spots: DbSpot[] }>('/api/spots', {
-      headers: { Authorization: `Bearer ${props.token}` },
+    const { spots } = await authFetch<{ spots: DbSpot[] }>('/api/spots', {
       params: { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() },
     })
     allFetchedSpots.value = spots
@@ -487,7 +489,7 @@ async function fetchViewportSpots() {
     emit('spots-updated', { spots, loading: false })
     emit('center-changed', center.lat, center.lng)
   } catch (err: any) {
-    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
+    if (isAuthExpiredError(err)) return
     emit('spots-updated', { spots: [], loading: false })
   }
 }
@@ -577,7 +579,7 @@ function fitToTripWaypoints() {
 function addDbMarker(spot: DbSpot) {
   if (!L || !dbSpotLayer) return
   const icon = L.divIcon({
-    html: `<span style="font-size:26px;line-height:1;">${spot.emoji}</span>`,
+    html: `<span aria-hidden="true" style="font-size:26px;line-height:1;">${escapeHtml(spot.emoji)}</span>`,
     className: 'food-marker',
     iconSize: [32, 32],
     iconAnchor: [16, 16],
@@ -585,14 +587,14 @@ function addDbMarker(spot: DbSpot) {
 
   const tagsHtml = spot.tags?.length
     ? `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:5px">${spot.tags.map(t =>
-        `<span style="background:#F5EDD7;color:#9C7B5C;padding:1px 7px;border-radius:10px;font-size:10px">${t}</span>`
+        `<span style="background:#F5EDD7;color:#9C7B5C;padding:1px 7px;border-radius:10px;font-size:10px">${escapeHtml(t)}</span>`
       ).join('')}</div>`
     : ''
 
   const gmapsNavUrl = `https://www.google.com/maps/dir/?api=1&destination=${spot.lat},${spot.lng}`
   const addressHtml = `<div style="margin-top:4px;display:flex;align-items:center;gap:4px">
     ${spot.address
-      ? `<span style="flex:1;font-size:10px;color:#9C7B5C;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${spot.address}">📍 ${spot.address}</span>`
+      ? `<span style="flex:1;font-size:10px;color:#9C7B5C;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(spot.address)}">📍 ${escapeHtml(spot.address)}</span>`
       : '<span style="flex:1"></span>'
     }
     <a href="${gmapsNavUrl}" target="_blank" rel="noopener noreferrer"
@@ -602,49 +604,50 @@ function addDbMarker(spot: DbSpot) {
   </div>`
 
   const notesHtml = spot.notes
-    ? `<div style="font-size:11px;color:#9C7B5C;margin-top:5px;border-top:1px solid #E8D9C0;padding-top:4px">${spot.notes}</div>`
+    ? `<div style="font-size:11px;color:#9C7B5C;margin-top:5px;border-top:1px solid #E8D9C0;padding-top:4px">${escapeHtml(spot.notes)}</div>`
     : ''
 
   const photosHtml = spot.photo_urls?.length
     ? `<div style="display:flex;gap:4px;margin-top:6px;border-top:1px solid #E8D9C0;padding-top:5px">${
         spot.photo_urls.slice(0, 3).map(url =>
-          `<a href="${url}" target="_blank" rel="noopener" style="display:block;width:52px;height:52px;border-radius:6px;overflow:hidden;flex-shrink:0;border:1px solid #E8D9C0">
-            <img src="${url}" style="width:100%;height:100%;object-fit:cover" loading="lazy" />
+          `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="display:block;width:52px;height:52px;border-radius:6px;overflow:hidden;flex-shrink:0;border:1px solid #E8D9C0">
+            <img src="${escapeHtml(url)}" alt="地點照片" style="width:100%;height:100%;object-fit:cover" loading="lazy" />
           </a>`
         ).join('')
       }</div>`
     : ''
 
   const isOwn = spot.user_id === props.userId
+  const sName = escapeHtml(spot.name)
   const btnStyle = (bg: string, color: string, border: string) =>
     `background:${bg};color:${color};border:1px solid ${border};padding:4px 0;border-radius:6px;cursor:pointer;font-size:11px;font-family:'Noto Sans TC',sans-serif`
 
-  const addToTripHtml = `<button data-trip="${spot.id}" style="width:100%;${btnStyle('#FFF8EE','#C8860A','#E8C97A')};margin-top:5px">📌 加入路線</button>`
+  const addToTripHtml = `<button data-trip="${spot.id}" aria-label="將 ${sName} 加入路線" style="width:100%;${btnStyle('#FFF8EE','#C8860A','#E8C97A')};margin-top:5px">📌 加入路線</button>`
 
   const actionsHtml = isOwn
     ? `<div style="display:flex;flex-direction:column;gap:5px;margin-top:7px">
         <div style="display:flex;gap:5px">
-          <button data-edit="${spot.id}" style="flex:1;${btnStyle('#FFF8EE','#C8860A','#E8C97A')}">✏️ 編輯</button>
-          <button data-del="${spot.id}"  style="flex:1;${btnStyle('#fef2f2','#C0392B','#fca5a5')}">🗑 刪除</button>
+          <button data-edit="${spot.id}" aria-label="編輯 ${sName}" style="flex:1;${btnStyle('#FFF8EE','#C8860A','#E8C97A')}">✏️ 編輯</button>
+          <button data-del="${spot.id}"  aria-label="刪除 ${sName}" style="flex:1;${btnStyle('#fef2f2','#C0392B','#fca5a5')}">🗑 刪除</button>
         </div>
-        <button data-comment-view="${spot.id}" style="width:100%;${btnStyle('#F0FDF4','#16A34A','#BBF7D0')}">💬 查看評論</button>
+        <button data-comment-view="${spot.id}" aria-label="查看 ${sName} 的評論" style="width:100%;${btnStyle('#F0FDF4','#16A34A','#BBF7D0')}">💬 查看評論</button>
         ${addToTripHtml}
       </div>`
     : `<div style="display:flex;flex-direction:column;gap:5px;margin-top:7px">
         <div style="display:flex;gap:5px">
-          <button data-comment-write="${spot.id}" style="flex:1;${btnStyle('#EEF2FF','#4F46E5','#C7D2FE')}">✏️ 評論</button>
-          <button data-report="${spot.id}"        style="flex:1;${btnStyle('#fafafa','#9C7B5C','#E8D9C0')}">⚠️ 回報</button>
+          <button data-comment-write="${spot.id}" aria-label="評論 ${sName}" style="flex:1;${btnStyle('#EEF2FF','#4F46E5','#C7D2FE')}">✏️ 評論</button>
+          <button data-report="${spot.id}"        aria-label="回報 ${sName}" style="flex:1;${btnStyle('#fafafa','#9C7B5C','#E8D9C0')}">⚠️ 回報</button>
         </div>
-        <button data-comment-view="${spot.id}" style="width:100%;${btnStyle('#F0FDF4','#16A34A','#BBF7D0')}">💬 查看評論</button>
+        <button data-comment-view="${spot.id}" aria-label="查看 ${sName} 的評論" style="width:100%;${btnStyle('#F0FDF4','#16A34A','#BBF7D0')}">💬 查看評論</button>
         ${addToTripHtml}
       </div>`
 
   const visibilityHtml = `<div style="font-size:10px;color:#9C7B5C;margin-top:4px">${isOwn ? (spot.is_public ? '🌐 公開' : '🔒 僅自己') : '👤 其他用戶'}</div>`
 
-  const marker = L.marker([spot.lat, spot.lng], { icon })
+  const marker = L.marker([spot.lat, spot.lng], { icon, title: spot.name, alt: spot.name })
     .bindPopup(`
       <div style="font-family:'Noto Sans TC',sans-serif;min-width:140px;max-width:210px">
-        <div style="font-weight:700;font-size:14px">${spot.emoji} ${spot.name}</div>
+        <div style="font-weight:700;font-size:14px">${escapeHtml(spot.emoji)} ${sName}</div>
         ${visibilityHtml}
         ${addressHtml}
         ${tagsHtml}
@@ -705,19 +708,18 @@ async function confirmDeleteSpot(spot: DbSpot) {
   const xpWarn = spot.xp_earned > 0 ? `\n\n⚠️ 刪除後將扣除當初獲得的 ${spot.xp_earned} XP。` : ''
   if (!confirm(`確定要刪除「${spot.name}」嗎？${xpWarn}`)) return
   try {
-    const result = await $fetch<{ ok: boolean; xpDeducted: number; newXp: number; newLevel: number }>(`/api/spots/${spot.id}`, {
+    const result = await authFetch<{ ok: boolean; xpDeducted: number; newXp: number; newLevel: number }>(`/api/spots/${spot.id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${props.token}` },
     })
     leafletMap?.closePopup()
     if (result.xpDeducted > 0) {
-      alert(`標記已刪除，已扣除 ${result.xpDeducted} XP。目前 XP：${result.newXp}（Lv.${result.newLevel}）`)
+      msg.warning(`標記已刪除，已扣除 ${result.xpDeducted} XP。目前 XP：${result.newXp}（Lv.${result.newLevel}）`)
     }
     emit('xp-gained', { newXp: result.newXp, newLevel: result.newLevel, leveledUp: false })
     await fetchViewportSpots()
   } catch (err: any) {
-    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
-    alert('刪除失敗，請稍後再試')
+    if (isAuthExpiredError(err)) return
+    msg.error('刪除失敗，請稍後再試')
   }
 }
 

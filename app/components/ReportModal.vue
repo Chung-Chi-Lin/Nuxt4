@@ -18,7 +18,7 @@
     <el-form v-else ref="formRef" :model="form" :rules="rules" label-position="top">
       <el-form-item label="回報原因" prop="reason">
         <!-- el-select：下拉選單，placeholder 為未選狀態提示 -->
-        <el-select v-model="form.reason" placeholder="請選擇原因…" style="width: 100%">
+        <el-select v-model="form.reason" placeholder="請選擇原因…" class="w-full">
           <el-option label="店家已暫停或停止營業" value="closed" />
           <el-option label="資訊錯誤（位置、名稱等）" value="wrong_info" />
           <el-option label="無意義或垃圾標記" value="spam" />
@@ -56,6 +56,8 @@ import type { FormInstance, FormRules } from 'element-plus'
 
 const props = defineProps<{ spotId: string; token: string }>()
 const emit  = defineEmits<{ close: [] }>()
+const msg   = useMessage()
+const { authFetch } = useAuthFetch(computed(() => props.token))
 
 const dialogVisible = ref(true)
 const formRef = ref<FormInstance>()
@@ -72,15 +74,14 @@ async function submit(): Promise<void> {
   if (!valid || loading.value) return
   loading.value = true
   try {
-    await $fetch('/api/reports', {
+    await authFetch('/api/reports', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${props.token}` },
       body: { spotId: props.spotId, reason: form.reason, note: form.note },
     })
     done.value = true
   } catch (err: unknown) {
     const e = err as { data?: { statusMessage?: string } }
-    ElMessage.error(e.data?.statusMessage ?? '送出失敗，請稍後再試')
+    msg.error(e.data?.statusMessage ?? '送出失敗，請稍後再試')
   } finally {
     loading.value = false
   }

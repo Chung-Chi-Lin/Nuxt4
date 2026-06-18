@@ -76,6 +76,7 @@
 <script lang="ts" setup>
 const props = defineProps<{ commentId: string; token: string }>()
 const emit  = defineEmits<{ close: [] }>()
+const { authFetch } = useAuthFetch(computed(() => props.token))
 
 const reason   = ref('')
 const note     = ref('')
@@ -88,9 +89,8 @@ async function submit(): Promise<void> {
   loading.value = true
   errorMsg.value = ''
   try {
-    await $fetch('/api/comment-reports', {
+    await authFetch('/api/comment-reports', {
       method:  'POST',
-      headers: { Authorization: `Bearer ${props.token}` },
       body:    { commentId: props.commentId, reason: reason.value, note: note.value },
     })
     done.value = true

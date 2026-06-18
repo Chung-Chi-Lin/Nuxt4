@@ -77,7 +77,12 @@
         <template v-else-if="filteredSpots.length">
           <div v-for="(spot, idx) in filteredSpots" :key="spot.id"
             class="bg-food-beige rounded-xl p-3 border border-transparent hover:border-food-caramel transition group">
-            <div class="flex items-start gap-2.5 cursor-pointer" @click="emit('select', spot)">
+            <div class="flex items-start gap-2.5 cursor-pointer"
+              role="button" tabindex="0"
+              :aria-label="`選擇 ${spot.name}`"
+              @click="emit('select', spot)"
+              @keydown.enter="emit('select', spot)"
+              @keydown.space.prevent="emit('select', spot)">
               <div class="relative shrink-0 mt-0.5">
                 <span class="text-2xl leading-none select-none">{{ spot.emoji }}</span>
                 <span class="absolute -top-1.5 -left-2 w-[18px] h-[18px] bg-food-caramel text-white rounded-full text-[9px] font-black flex items-center justify-center leading-none shadow">

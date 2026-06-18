@@ -104,6 +104,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ close: [] }>()
+const { authFetch } = useAuthFetch(computed(() => props.token))
 
 const comments          = ref<SpotComment[]>([])
 const loading           = ref(false)
@@ -119,11 +120,11 @@ async function fetchComments(): Promise<void> {
   try {
     const { comments: data } = await $fetch<{ comments: SpotComment[] }>(
       `/api/spots/${props.spotId}/comments`,
-      { headers: { Authorization: `Bearer ${props.token}` } }
+      {}
     )
     comments.value = data
   } catch (err: any) {
-    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
+    if (isAuthExpiredError(err)) return
     fetchError.value = '載入評論失敗，請稍後再試'
   } finally {
     loading.value = false
@@ -136,13 +137,12 @@ async function deleteComment(id: string): Promise<void> {
   try {
     const spotId = props.spotId
     const cid    = id
-    await $fetch(`/api/spots/${spotId}/comments/${cid}`, {
+    await authFetch(`/api/spots/${spotId}/comments/${cid}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${props.token}` },
     })
     comments.value = comments.value.filter(c => c.id !== id)
   } catch (err: any) {
-    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
+    if (isAuthExpiredError(err)) return
     // silently fail — user sees no change
   } finally {
     deletingId.value = null

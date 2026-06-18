@@ -1,6 +1,26 @@
+/*
+  ╔══════════════════════════════════════════════════════╗
+  ║  全站 CSS 統一入口，載入順序由上到下，後面覆蓋前面   ║
+  ║  1. Element Plus  → 元件樣式 + 它自己的 normalize    ║
+  ║  2. Tailwind      → preflight 覆蓋 EP 的 normalize   ║
+  ║  3. @theme        → 專案 design token                 ║
+  ║  4. :root         → 覆蓋 EP 的顏色 variable          ║
+  ║  5. 全域樣式       → body、字型、Leaflet 等           ║
+  ╚══════════════════════════════════════════════════════╝
+
+  ⚠ 所有 @import 必須放在最頂端（CSS 規範要求）
+*/
+
+/* ── 1. 字型 ─────────────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Noto+Sans+TC:wght@400;500;700&display=swap');
+
+/* ── 2. Element Plus（先載，讓 Tailwind preflight 蓋掉它的 normalize） */
+@import 'element-plus/dist/index.css';
+
+/* ── 3. Tailwind（preflight 會蓋掉 EP 的 body/a/button 等 normalize） */
 @import "tailwindcss";
 
+/* ── 4. 專案 design token（Tailwind 4 的 @theme） ──────── */
 @theme {
   --color-food-cream:   #FDFAF5;
   --color-food-beige:   #F5EDD7;
@@ -14,6 +34,24 @@
   --color-food-red:     #C0392B;
 }
 
+/* ── 5. 覆蓋 Element Plus 的 CSS variable ───────────────
+   EP 所有元件（按鈕、tabs、checkbox、select focus…）的主色
+   都讀 --el-color-primary，在這裡統一改成 food-caramel。
+   這裡用 :root 覆蓋，比 EP 自己的 :root 後載入，所以會贏。  */
+:root {
+  --el-color-primary:         #C8860A;   /* food-caramel */
+  --el-color-primary-light-3: #D9A84C;   /* hover 背景 */
+  --el-color-primary-light-5: #E4BC7D;
+  --el-color-primary-light-7: #EED0A8;   /* radio/checkbox checked 背景 */
+  --el-color-primary-light-8: #F4E2C4;
+  --el-color-primary-light-9: #FAF0E0;   /* tag 背景 */
+  --el-color-primary-dark-2:  #A36D06;   /* active 按下 */
+
+  /* 字型也在這裡對齊，確保 EP 元件內的字型正確 */
+  --el-font-family: 'Noto Sans TC', system-ui, sans-serif;
+}
+
+/* ── 6. 全域樣式 ────────────────────────────────────── */
 body {
   background-color: #FDFAF5;
   color: #3D2B1F;
@@ -22,14 +60,13 @@ body {
 
 .font-caveat { font-family: 'Caveat', cursive; }
 
-/* 所有可點擊元素統一加 pointer */
 button, a, [role="button"],
 label[for], select, summary {
   cursor: pointer;
 }
 button:disabled { cursor: not-allowed; }
 
-/* Leaflet overrides */
+/* ── Leaflet ────────────────────────────────────────── */
 .leaflet-container { font-family: 'Noto Sans TC', system-ui, sans-serif; }
 .food-marker {
   background: none !important;

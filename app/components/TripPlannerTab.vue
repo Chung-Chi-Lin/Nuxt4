@@ -25,7 +25,7 @@
           class="flex-1 py-1.5 text-[11px] font-bold rounded-lg border border-food-border text-food-muted hover:border-food-caramel hover:text-food-caramel transition">
           👥 成員
         </button>
-        <button v-if="activeTrip.trip.my_role === 'owner'" @click="confirmDeleteTrip"
+        <button v-if="activeTrip.trip.my_role === 'owner'" aria-label="刪除旅程" @click="confirmDeleteTrip"
           class="px-3 py-1.5 text-[11px] font-bold rounded-lg border border-red-200 text-red-400 hover:bg-red-50 transition">
           🗑
         </button>
@@ -42,7 +42,7 @@
           class="flex-1 py-1.5 text-[11px] font-bold rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-50 transition">
           ✏️ 可編輯
         </button>
-        <button @click="showInviteMenu = false" class="text-food-muted hover:text-food-brown text-xs transition shrink-0">✕</button>
+        <button aria-label="關閉分享選單" @click="showInviteMenu = false" class="text-food-muted hover:text-food-brown text-xs transition shrink-0">✕</button>
       </div>
     </div>
 
@@ -57,11 +57,11 @@
           class="shrink-0 px-3 py-1 text-xs font-bold rounded-lg border transition whitespace-nowrap">
           {{ day.label ?? `Day ${i + 1}` }}
         </button>
-        <button v-if="canEdit" @click="addDay" :disabled="dayLoading"
+        <button v-if="canEdit" aria-label="新增天" @click="addDay" :disabled="dayLoading"
           class="shrink-0 w-7 h-7 rounded-lg bg-food-input border border-food-border text-food-muted hover:text-food-caramel hover:border-food-caramel transition text-sm font-bold flex items-center justify-center disabled:opacity-40">
           +
         </button>
-        <button v-if="canEdit && activeTrip.days.length > 1" @click="deleteCurrentDay" :disabled="dayLoading"
+        <button v-if="canEdit && activeTrip.days.length > 1" aria-label="刪除此天" @click="deleteCurrentDay" :disabled="dayLoading"
           class="shrink-0 w-7 h-7 rounded-lg bg-food-input border border-red-200 text-red-400 hover:bg-red-50 transition text-xs font-bold flex items-center justify-center disabled:opacity-40">
           −
         </button>
@@ -76,7 +76,7 @@
         <div class="flex gap-1">
           <button v-for="m in MODES" :key="m.key"
             @click="transportMode = m.key"
-            :title="m.label"
+            :title="m.label" :aria-label="m.label"
             :class="transportMode === m.key
               ? 'bg-food-caramel text-white border-food-caramel'
               : 'bg-food-input text-food-muted border-food-border hover:border-food-caramel/60'"
@@ -104,7 +104,7 @@
         class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 flex items-center gap-3 mb-2">
         <span class="text-xs font-bold text-emerald-700">📏 {{ formatDist(routeInfo.distance) }}</span>
         <span class="text-xs font-bold text-emerald-700">⏱ {{ formatDur(routeInfo.duration) }}</span>
-        <button @click="clearRoute" class="ml-auto text-food-muted hover:text-red-400 text-xs transition">✕</button>
+        <button aria-label="清除路線" @click="clearRoute" class="ml-auto text-food-muted hover:text-red-400 text-xs transition">✕</button>
       </div>
 
       <!-- Empty state -->
@@ -128,7 +128,7 @@
           </span>
           <span class="text-lg leading-none select-none shrink-0">{{ wp.emoji }}</span>
           <span class="flex-1 text-xs font-bold text-food-brown truncate min-w-0">{{ wp.custom_name }}</span>
-          <button v-if="canEdit" @click="removeWaypoint(i)"
+          <button v-if="canEdit" :aria-label="`移除 ${wp.custom_name}`" @click="removeWaypoint(i)"
             class="text-food-muted hover:text-red-400 transition text-xs shrink-0 leading-none">✕</button>
         </div>
       </VueDraggable>
@@ -205,6 +205,8 @@ const emit = defineEmits<{
 }>()
 
 // ── State ──────────────────────────────────────────────────────
+const msg            = useMessage()
+const { authFetch }  = useAuthFetch(computed(() => props.token))
 const trips          = ref<Trip[]>([])
 const selectedTripId = ref<string | null>(null)
 const activeTrip     = ref<TripDetail | null>(null)
@@ -244,11 +246,10 @@ const canEdit = computed(() =>
   activeTrip.value?.trip.my_role === 'owner' || activeTrip.value?.trip.my_role === 'editor'
 )
 
-const headers = computed(() => ({ Authorization: `Bearer ${props.token}` }))
 
 function handleErr(err: any, fallback: string) {
-  if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
-  alert(err?.data?.statusMessage ?? fallback)
+  if (isAuthExpiredError(err)) return
+  msg.error(err?.data?.statusMessage ?? fallback)
 }
 
 // ── Load trips ────────────────────────────────────────────────
@@ -256,13 +257,13 @@ async function fetchTrips() {
   if (!props.token) return
   loading.value = true
   try {
-    const { trips: data } = await $fetch<{ trips: Trip[] }>('/api/trips', { headers: headers.value })
+    const { trips: data } = await authFetch<{ trips: Trip[] }>('/api/trips')
     trips.value = data
     if (data.length && !selectedTripId.value) {
       await loadTrip(data[0]!.id)
     }
   } catch (err: any) {
-    if (isTokenError(err)) useTokenExpiry().triggerExpiry()
+    if (isAuthExpiredError(err)) return
   } finally {
     loading.value = false
   }
@@ -271,7 +272,7 @@ async function fetchTrips() {
 async function loadTrip(id: string) {
   selectedTripId.value = id
   try {
-    const data = await $fetch<TripDetail>(`/api/trips/${id}`, { headers: headers.value })
+    const data = await authFetch<TripDetail>(`/api/trips/${id}`)
     activeTrip.value = data
     activeDayIndex.value = 0
     syncLocalWaypoints()
@@ -302,9 +303,8 @@ async function createTrip() {
   if (!newTripName.value.trim() || creating.value) return
   creating.value = true
   try {
-    const data = await $fetch<{ trip: Trip; days: TripDay[] }>('/api/trips', {
+    const data = await authFetch<{ trip: Trip; days: TripDay[] }>('/api/trips', {
       method: 'POST',
-      headers: headers.value,
       body: { name: newTripName.value.trim() },
     })
     trips.value.unshift({ ...data.trip })
@@ -332,7 +332,7 @@ async function confirmDeleteTrip() {
   if (!activeTrip.value || !confirm(`確定刪除「${activeTrip.value.trip.name}」？此操作無法復原。`)) return
   const id = activeTrip.value.trip.id
   try {
-    await $fetch(`/api/trips/${id}`, { method: 'DELETE', headers: headers.value })
+    await authFetch(`/api/trips/${id}`, { method: 'DELETE' })
     trips.value = trips.value.filter(t => t.id !== id)
     activeTrip.value = null
     selectedTripId.value = null
@@ -349,9 +349,8 @@ async function addDay() {
   if (!activeTrip.value || dayLoading.value) return
   dayLoading.value = true
   try {
-    const { day } = await $fetch<{ day: TripDay }>(`/api/trips/${activeTrip.value.trip.id}/days`, {
+    const { day } = await authFetch<{ day: TripDay }>(`/api/trips/${activeTrip.value.trip.id}/days`, {
       method: 'POST',
-      headers: headers.value,
     })
     activeTrip.value.days.push(day)
     activeDayIndex.value = activeTrip.value.days.length - 1
@@ -367,9 +366,8 @@ async function deleteCurrentDay() {
   if (!confirm(`確定刪除「${activeDay.value.label}」？`)) return
   dayLoading.value = true
   try {
-    await $fetch(`/api/trips/${activeTrip.value.trip.id}/days/${activeDay.value.id}`, {
+    await authFetch(`/api/trips/${activeTrip.value.trip.id}/days/${activeDay.value.id}`, {
       method: 'DELETE',
-      headers: headers.value,
     })
     await loadTrip(activeTrip.value.trip.id)
   } catch (err: any) {
@@ -419,9 +417,9 @@ async function saveWaypoints() {
   if (!activeTrip.value || !activeDay.value || saving.value) return
   saving.value = true
   try {
-    const { waypoints: saved } = await $fetch<{ waypoints: TripWaypoint[] }>(
+    const { waypoints: saved } = await authFetch<{ waypoints: TripWaypoint[] }>(
       `/api/trips/${activeTrip.value.trip.id}/days/${activeDay.value.id}/waypoints`,
-      { method: 'PUT', headers: headers.value, body: { waypoints: localWaypoints.value } }
+      { method: 'PUT', body: { waypoints: localWaypoints.value } }
     )
     // Merge saved IDs back
     const otherWps = (activeTrip.value.waypoints ?? []).filter(w => w.day_id !== activeDay.value!.id)
@@ -464,15 +462,14 @@ async function copyInviteLink(role: 'viewer' | 'editor' = 'viewer') {
   if (!activeTrip.value || copyLoading.value) return
   copyLoading.value = true
   try {
-    const { token: inviteToken } = await $fetch<{ token: string }>('/api/trips/invite', {
+    const { token: inviteToken } = await authFetch<{ token: string }>('/api/trips/invite', {
       method: 'POST',
-      headers: headers.value,
       body: { tripId: activeTrip.value.trip.id, role },
     })
     const url = `${window.location.origin}/map?trip_invite=${inviteToken}`
     await navigator.clipboard.writeText(url)
     const roleLabel = role === 'editor' ? '可編輯' : '觀看者'
-    alert(`已複製「${roleLabel}」邀請連結！有效期 7 天。`)
+    msg.success(`已複製「${roleLabel}」邀請連結！有效期 7 天。`)
     showInviteMenu.value = false
   } catch (err: any) {
     handleErr(err, '產生連結失敗')

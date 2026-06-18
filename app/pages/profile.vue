@@ -13,7 +13,7 @@
       <!-- ── 頭像區塊 ── -->
       <div class="bg-food-surface rounded-2xl p-6 flex flex-col items-center gap-3 shadow-sm">
 
-        <div class="relative group cursor-pointer" @click="triggerFileUpload">
+        <button type="button" class="relative group cursor-pointer" aria-label="更換頭像" @click="triggerFileUpload">
           <!-- Avatar -->
           <div class="w-24 h-24 rounded-full overflow-hidden border-4 border-food-border bg-food-beige">
             <img v-if="avatarPreview || pendingPresetUrl || user?.avatar_url"
@@ -44,7 +44,7 @@
             :size="26"
             class="absolute -bottom-1 -right-1 drop-shadow"
           />
-        </div>
+        </button>
 
         <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="handleAvatarSelect" />
 
@@ -369,15 +369,7 @@
 definePageMeta({ middleware: 'auth' })
 useHead({ title: '個人資料 — 波吉的美食地圖' })
 
-interface UserProfile {
-  id: string
-  email: string
-  username: string
-  avatar_url: string | null
-  user_level: number
-  xp: number
-  role?: string
-}
+import type { UserProfile } from '~/types'
 
 // XP to reach level N (same formula as server/utils/xp.ts)
 function xpForLevel(level: number): number {
@@ -388,6 +380,7 @@ function xpForLevel(level: number): number {
 }
 
 const token = useCookie('auth_token')
+const { authFetch } = useAuthFetch(token)
 
 const { data: meData } = await useFetch('/api/auth/me', {
   headers: { Authorization: `Bearer ${token.value ?? ''}` },
@@ -473,7 +466,6 @@ async function savePreset(): Promise<void> {
   try {
     const res = await $fetch<{ avatar_url: string }>('/api/profile/avatar-preset', {
       method: 'PATCH',
-      headers: { Authorization: `Bearer ${token.value ?? ''}` },
       body: { avatar_url: pendingPresetUrl.value },
     })
     if (user.value) user.value.avatar_url = res.avatar_url
@@ -482,7 +474,7 @@ async function savePreset(): Promise<void> {
     avatarSuccess.value = '✅ 頭像已更新！'
     setTimeout(() => { avatarSuccess.value = '' }, 2000)
   } catch (err: any) {
-    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
+    if (isAuthExpiredError(err)) return
     avatarError.value = err.data?.statusMessage ?? '套用失敗，請稍後再試'
   } finally {
     presetSaving.value = false
@@ -563,7 +555,6 @@ async function uploadAvatar() {
 
     const res = await $fetch<{ avatar_url: string }>('/api/profile/avatar', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token.value ?? ''}` },
       body: form,
     })
     if (user.value) user.value.avatar_url = res.avatar_url
@@ -572,7 +563,7 @@ async function uploadAvatar() {
     if (fileInput.value) fileInput.value.value = ''
     avatarSuccess.value = '✅ 頭像已更新！'
   } catch (err: any) {
-    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
+    if (isAuthExpiredError(err)) return
     avatarError.value = err.data?.statusMessage ?? '上傳失敗，請稍後再試'
   } finally {
     avatarUploading.value = false
@@ -610,14 +601,13 @@ async function saveUsername() {
   try {
     const res = await $fetch<{ username: string }>('/api/profile/update', {
       method: 'PATCH',
-      headers: { Authorization: `Bearer ${token.value ?? ''}` },
       body: { username: trimmed },
     })
     if (user.value) user.value.username = res.username
     usernameSuccess.value = '✅ 暱稱已更新！'
     setTimeout(() => { editingUsername.value = false; usernameSuccess.value = '' }, 1500)
   } catch (err: any) {
-    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
+    if (isAuthExpiredError(err)) return
     usernameError.value = err.data?.statusMessage ?? '更新失敗，請稍後再試'
   } finally {
     usernameLoading.value = false
@@ -680,15 +670,14 @@ async function savePassword() {
 
   passwordLoading.value = true
   try {
-    await $fetch('/api/profile/change-password', {
+    await authFetch('/api/profile/change-password', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token.value ?? ''}` },
       body: { oldPassword: oldPwd.value, newPassword: newPwd.value },
     })
     passwordSuccess.value = '✅ 密碼已更新！'
     setTimeout(() => cancelEditPassword(), 1500)
   } catch (err: any) {
-    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
+    if (isAuthExpiredError(err)) return
     passwordError.value = err.data?.statusMessage ?? '更新失敗，請稍後再試'
   } finally {
     passwordLoading.value = false

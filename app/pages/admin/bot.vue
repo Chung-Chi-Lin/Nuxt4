@@ -34,7 +34,7 @@
         />
 
         <!-- el-select + el-option：下拉排序 -->
-        <el-select v-model="sort" style="width: 150px" @change="fetchUsers">
+        <el-select v-model="sort" class="w-[150px]" @change="fetchUsers">
           <el-option label="本週用量 ↓" value="week" />
           <el-option label="今日用量 ↓" value="today" />
           <el-option label="Email A→Z" value="email" />
@@ -142,8 +142,7 @@
               v-for="t in TIERS"
               :key="t.value"
               :value="t.value"
-              class="!rounded-xl"
-              style="width: 100%"
+              class="!rounded-xl w-full"
             >
               {{ t.icon }} {{ t.label }}
               <span class="text-[10px] opacity-70 ml-1">{{ t.desc }}</span>
@@ -184,7 +183,7 @@
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="選擇到期日"
-            style="width: 100%"
+            class="w-full"
           />
         </el-form-item>
 
@@ -208,17 +207,7 @@
 definePageMeta({ middleware: 'admin' })
 useHead({ title: 'AI 問答管理 — 波吉後台' })
 
-interface BotPlan {
-  tier: string; daily_limit: number; bonus_credits: number
-  trial_expires_at?: string | null; credits_note?: string | null; updated_at?: string
-}
-interface BotUser {
-  id: string; email: string; username: string; created_at: string
-  today_count: number; week_count: number; plan: BotPlan | null
-}
-interface Stats {
-  totalToday: number; totalWeek: number; activeToday: number; totalUsers: number
-}
+import type { BotPlan, BotUser, BotStats } from '~/types'
 
 const TIERS = [
   { value: 'free',      icon: '🆓', label: '免費',   desc: '15 次/天' },
@@ -227,11 +216,13 @@ const TIERS = [
   { value: 'unlimited', icon: '♾️', label: '無上限', desc: '管理員' },
 ]
 
+const msg     = useMessage()
 const token   = useCookie('auth_token')
+const { authFetch } = useAuthFetch(token)
 const loading = ref(true)
 const saving  = ref(false)
 const users   = ref<BotUser[]>([])
-const stats   = ref<Stats | null>(null)
+const stats   = ref<BotStats | null>(null)
 const search  = ref('')
 const sort    = ref('week')
 const showAll = ref(false)
@@ -249,7 +240,6 @@ const statCards = computed(() => [
   { label: '本週總問答',   value: stats.value?.totalWeek   ?? 0 },
 ])
 
-const headers = computed(() => ({ Authorization: `Bearer ${token.value ?? ''}` }))
 
 function todayPercent(u: BotUser): number {
   if (u.plan?.tier === 'unlimited') return 0
@@ -266,8 +256,7 @@ function onSearch() {
 async function fetchUsers() {
   loading.value = true
   try {
-    const res = await $fetch<{ users: BotUser[]; stats: Stats }>('/api/admin/bot-users', {
-      headers: headers.value,
+    const res = await $fetch<{ users: BotUser[]; stats: BotStats }>('/api/admin/bot-users', {
       params: { search: search.value || undefined, sort: sort.value, showAll: showAll.value ? 'true' : undefined },
     })
     users.value = res.users
@@ -296,8 +285,8 @@ async function saveEdit() {
   if (!editing.value || saving.value) return
   saving.value = true
   try {
-    await $fetch(`/api/admin/bot-users/${editing.value.id}`, {
-      method: 'PATCH', headers: headers.value,
+    await authFetch(`/api/admin/bot-users/${editing.value.id}`, {
+      method: 'PATCH',
       body: {
         tier:             form.tier,
         daily_limit:      form.daily_limit,
@@ -314,10 +303,10 @@ async function saveEdit() {
         credits_note: form.credits_note || null,
       }
     }
-    ElMessage.success('儲存成功')
+    msg.success('儲存成功')
     showEditDialog.value = false
   } catch {
-    ElMessage.error('儲存失敗，請稍後再試')
+    msg.error('儲存失敗，請稍後再試')
   } finally {
     saving.value = false
   }

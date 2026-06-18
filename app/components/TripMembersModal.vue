@@ -82,6 +82,8 @@ const props = defineProps<{
 
 defineEmits<{ close: [] }>()
 
+const msg         = useMessage()
+const { authFetch } = useAuthFetch(computed(() => props.token))
 const members     = ref<TripMember[]>([])
 const loading     = ref(true)
 const roleUpdating = ref<string | null>(null)
@@ -89,8 +91,7 @@ const roleUpdating = ref<string | null>(null)
 async function fetchMembers() {
   loading.value = true
   try {
-    const { members: data } = await $fetch<{ members: TripMember[] }>(`/api/trips/${props.tripId}/members`, {
-      headers: { Authorization: `Bearer ${props.token}` },
+    const { members: data } = await authFetch<{ members: TripMember[] }>(`/api/trips/${props.tripId}/members`, {
     })
     members.value = data
   } finally {
@@ -103,14 +104,13 @@ async function updateRole(uid: string, role: 'viewer' | 'editor') {
   if (!member || member.role === role) return
   roleUpdating.value = uid
   try {
-    await $fetch(`/api/trips/${props.tripId}/members/${uid}`, {
+    await authFetch(`/api/trips/${props.tripId}/members/${uid}`, {
       method: 'PATCH',
-      headers: { Authorization: `Bearer ${props.token}` },
       body: { role },
     })
     member.role = role
   } catch (err: any) {
-    alert(err.data?.statusMessage ?? '更新角色失敗')
+    msg.error(err.data?.statusMessage ?? '更新角色失敗')
   } finally {
     roleUpdating.value = null
   }
@@ -119,13 +119,12 @@ async function updateRole(uid: string, role: 'viewer' | 'editor') {
 async function removeMember(uid: string) {
   if (!confirm('確定要移除此成員？')) return
   try {
-    await $fetch(`/api/trips/${props.tripId}/members/${uid}`, {
+    await authFetch(`/api/trips/${props.tripId}/members/${uid}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${props.token}` },
     })
     members.value = members.value.filter(m => m.user_id !== uid)
   } catch (err: any) {
-    alert(err.data?.statusMessage ?? '操作失敗')
+    msg.error(err.data?.statusMessage ?? '操作失敗')
   }
 }
 

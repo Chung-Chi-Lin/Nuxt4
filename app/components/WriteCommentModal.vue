@@ -46,6 +46,8 @@ import type { SpotComment } from '~/types'
 
 const props = defineProps<{ spotId: string; spotName: string; token: string }>()
 const emit  = defineEmits<{ close: []; saved: [comment: SpotComment] }>()
+const msg   = useMessage()
+const { authFetch } = useAuthFetch(computed(() => props.token))
 
 // 掛載時立即開啟；關閉動畫結束後 @closed 觸發 emit('close')，父層 v-if 卸載元件
 const dialogVisible = ref(true)
@@ -64,11 +66,10 @@ async function submit(): Promise<void> {
   if (!valid || loading.value) return
   loading.value = true
   try {
-    const { comment } = await $fetch<{ comment: SpotComment }>(
+    const { comment } = await authFetch<{ comment: SpotComment }>(
       `/api/spots/${props.spotId}/comments`,
       {
         method: 'POST',
-        headers: { Authorization: `Bearer ${props.token}` },
         body: { content: form.content },
       }
     )
@@ -76,7 +77,7 @@ async function submit(): Promise<void> {
     emit('saved', comment)
   } catch (err: unknown) {
     const e = err as { data?: { statusMessage?: string } }
-    ElMessage.error(e.data?.statusMessage ?? '送出失敗，請稍後再試')
+    msg.error(e.data?.statusMessage ?? '送出失敗，請稍後再試')
   } finally {
     loading.value = false
   }

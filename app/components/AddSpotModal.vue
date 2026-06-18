@@ -243,6 +243,7 @@ const emit = defineEmits<{
 }>()
 
 const token = useCookie('auth_token')
+const { authFetch } = useAuthFetch(token)
 
 const category  = ref<string>('food')
 const emoji     = ref('📍')
@@ -265,9 +266,8 @@ async function handleSave() {
   saving.value = true
   savingStatus.value = '儲存標記中…'
   try {
-    const result = await $fetch<any>('/api/spots', {
+    const result = await authFetch<any>('/api/spots', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token.value ?? ''}` },
       body: {
         name:      name.value.trim(),
         emoji:     emoji.value || '📍',
@@ -287,10 +287,9 @@ async function handleSave() {
       form.append('spotId', result.spot.id)
       newFiles.value.forEach(f => form.append('photos', f))
       try {
-        const { photo_urls } = await $fetch<{ photo_urls: string[] }>('/api/spots/upload-photos', {
+        const { photo_urls } = await authFetch<{ photo_urls: string[] }>('/api/spots/upload-photos', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token.value ?? ''}` },
-          body: form,
+              body: form,
         })
         result.spot.photo_urls = photo_urls
       } catch {
@@ -300,7 +299,7 @@ async function handleSave() {
 
     emit('saved', result)
   } catch (err: any) {
-    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
+    if (isAuthExpiredError(err)) return
     saveError.value = err.data?.statusMessage ?? '儲存失敗，請稍後再試'
   } finally {
     saving.value = false

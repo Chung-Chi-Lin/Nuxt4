@@ -110,6 +110,43 @@ export interface LoginResponse {
   sessionToken: string
 }
 
+export interface UserProfile {
+  id: string
+  email: string
+  username: string
+  avatar_url: string | null
+  user_level: number
+  xp: number
+  role?: string
+}
+
+export interface SpotReport {
+  id: string; reason: string; note: string | null; status: string; created_at: string
+  spot:     { id: string; name: string; emoji: string; lat?: number; lng?: number }
+  reporter: { username: string }
+}
+
+export interface CommentReport {
+  id: string; reason: string; note: string | null; status: string; created_at: string
+  comment_id: string
+  reporter: { username: string }
+  comment: { id: string; content: string; author: { username: string }; spot: { name: string; emoji: string } } | null
+}
+
+export interface BotPlan {
+  tier: string; daily_limit: number; bonus_credits: number
+  trial_expires_at?: string | null; credits_note?: string | null; updated_at?: string
+}
+
+export interface BotUser {
+  id: string; email: string; username: string; created_at: string
+  today_count: number; week_count: number; plan: BotPlan | null
+}
+
+export interface BotStats {
+  totalToday: number; totalWeek: number; activeToday: number; totalUsers: number
+}
+
 export interface RegisterResponse {
   token?: string | null
   sessionToken?: string | null

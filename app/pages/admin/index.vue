@@ -30,7 +30,7 @@
             <el-badge v-if="spotPendingCount > 0" :value="spotPendingCount" type="danger" class="ml-2" />
           </template>
 
-          <div class="space-y-4 pt-4">
+          <div v-if="activeTab === 'spot-reports'" class="space-y-4 pt-4">
             <!-- el-radio-group + el-radio-button：按鈕樣式的單選群組，@change 在值變更時觸發 -->
             <el-radio-group v-model="statusFilter" size="small" @change="fetchData">
               <el-radio-button value="pending">待審核</el-radio-button>
@@ -86,6 +86,7 @@
                   <a v-if="r.spot.lat && r.spot.lng"
                     :href="`/map?lat=${r.spot.lat}&lng=${r.spot.lng}`"
                     target="_blank"
+                    rel="noopener noreferrer"
                     class="text-xs text-blue-500 hover:text-blue-700 font-bold mr-auto"
                   >📍 查看位置</a>
                   <span v-else class="mr-auto" />
@@ -122,7 +123,7 @@
             <el-badge v-if="commentPendingCount > 0" :value="commentPendingCount" type="danger" class="ml-2" />
           </template>
 
-          <div class="space-y-4 pt-4">
+          <div v-if="activeTab === 'comment-reports'" class="space-y-4 pt-4">
             <el-radio-group v-model="statusFilter" size="small" @change="fetchData">
               <el-radio-button value="pending">待審核</el-radio-button>
               <el-radio-button value="resolved">已解決</el-radio-button>
@@ -204,20 +205,10 @@
 definePageMeta({ middleware: 'admin' })
 useHead({ title: '後台管理 — 波吉的美食地圖' })
 
-interface SpotReport {
-  id: string; reason: string; note: string | null; status: string; created_at: string
-  spot:     { id: string; name: string; emoji: string; lat?: number; lng?: number }
-  reporter: { username: string }
-}
-
-interface CommentReport {
-  id: string; reason: string; note: string | null; status: string; created_at: string
-  comment_id: string
-  reporter: { username: string }
-  comment: { id: string; content: string; author: { username: string }; spot: { name: string; emoji: string } } | null
-}
+import type { SpotReport, CommentReport } from '~/types'
 
 const token          = useCookie('auth_token')
+const { authFetch }  = useAuthFetch(token)
 const activeTab      = ref<string>('spot-reports')
 const statusFilter   = ref('pending')
 const loading        = ref(false)
@@ -226,7 +217,6 @@ const processingId   = ref<string | null>(null)
 const spotPendingCount    = ref(0)
 const commentPendingCount = ref(0)
 
-const headers = computed(() => ({ Authorization: `Bearer ${token.value ?? ''}` }))
 
 async function fetchData(): Promise<void> {
   loading.value = true
@@ -234,8 +224,7 @@ async function fetchData(): Promise<void> {
     const path = activeTab.value === 'spot-reports'
       ? '/api/admin/spot-reports'
       : '/api/admin/comment-reports'
-    const { reports: data } = await $fetch<{ reports: any[] }>(path, {
-      headers: headers.value,
+    const { reports: data } = await authFetch<{ reports: any[] }>(path, {
       params:  { status: statusFilter.value },
     })
     reports.value = data
@@ -248,8 +237,8 @@ async function fetchData(): Promise<void> {
 
 async function fetchPendingCounts(): Promise<void> {
   const [sr, cr] = await Promise.allSettled([
-    $fetch<{ reports: any[] }>('/api/admin/spot-reports',    { headers: headers.value, params: { status: 'pending' } }),
-    $fetch<{ reports: any[] }>('/api/admin/comment-reports', { headers: headers.value, params: { status: 'pending' } }),
+    authFetch<{ reports: any[] }>('/api/admin/spot-reports',    { params: { status: 'pending' } }),
+    authFetch<{ reports: any[] }>('/api/admin/comment-reports', { params: { status: 'pending' } }),
   ])
   if (sr.status === 'fulfilled') spotPendingCount.value    = sr.value.reports.length
   if (cr.status === 'fulfilled') commentPendingCount.value = cr.value.reports.length
@@ -273,8 +262,8 @@ async function updateSpotReport(id: string, status: string, deleteSpot = false, 
   }
   processingId.value = id
   try {
-    await $fetch(`/api/admin/spot-reports/${id}`, {
-      method: 'PATCH', headers: headers.value,
+    await authFetch(`/api/admin/spot-reports/${id}`, {
+      method: 'PATCH',
       body: { status, deleteSpot, spotId },
     })
     reports.value = (reports.value as SpotReport[]).filter(r => r.id !== id)
@@ -299,8 +288,8 @@ async function updateCommentReport(id: string, status: string, deleteComment: bo
   }
   processingId.value = id
   try {
-    await $fetch(`/api/admin/comment-reports/${id}`, {
-      method: 'PATCH', headers: headers.value,
+    await authFetch(`/api/admin/comment-reports/${id}`, {
+      method: 'PATCH',
       body: { status, deleteComment, commentId },
     })
     reports.value = (reports.value as CommentReport[]).filter(r => r.id !== id)

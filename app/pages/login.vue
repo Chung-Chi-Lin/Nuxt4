@@ -8,8 +8,8 @@
       <!-- Logo -->
       <div class="text-center mb-6 sm:mb-8">
         <div class="text-4xl sm:text-5xl mb-2 sm:mb-3">🗺️</div>
-        <h1 class="text-2xl sm:text-3xl font-bold text-white mb-1" style="text-shadow: 0 2px 8px rgba(0,0,0,0.6)">波吉的美食地圖</h1>
-        <p class="font-caveat text-white/90 text-base sm:text-lg" style="text-shadow: 0 1px 6px rgba(0,0,0,0.7)">Bojji's Tasty Trails</p>
+        <h1 class="text-2xl sm:text-3xl font-bold text-white mb-1 [text-shadow:0_2px_8px_rgb(0_0_0/0.6)]">波吉的美食地圖</h1>
+        <p class="font-caveat text-white/90 text-base sm:text-lg [text-shadow:0_1px_6px_rgb(0_0_0/0.7)]">Bojji's Tasty Trails</p>
       </div>
 
       <div class="bg-food-surface rounded-2xl sm:rounded-3xl shadow-2xl border border-food-border overflow-hidden">
@@ -49,13 +49,12 @@
                   />
                 </el-form-item>
 
-                <el-form-item label="密碼" prop="password">
+                <el-form-item label="Password" prop="password">
                   <!-- show-password → 顯示密碼切換按鈕 -->
                   <el-input
                     v-model="loginForm.password"
                     type="password"
                     show-password
-                    placeholder="••••••••"
                     autocomplete="current-password"
                     size="large"
                   />
@@ -67,7 +66,7 @@
                   <el-button link type="primary" @click="mode = 'forgot'">忘記密碼？</el-button>
                 </div>
 
-                <el-button type="primary" :loading="loading" size="large" style="width:100%" @click="handleLogin">
+                <el-button type="primary" native-type="submit" :loading="loading" size="large" class="w-full" @click="handleLogin">
                   {{ loading ? '登入中…' : '登入 🍜' }}
                 </el-button>
               </el-form>
@@ -92,7 +91,7 @@
 
                 <p v-if="successMsg" class="text-green-600 text-sm mb-4">{{ successMsg }}</p>
 
-                <el-button type="primary" :loading="loading" size="large" style="width:100%" @click="handleRegister">
+                <el-button type="primary" native-type="submit" :loading="loading" size="large" class="w-full" @click="handleRegister">
                   {{ loading ? '註冊中…' : '建立帳號 ✨' }}
                 </el-button>
               </el-form>
@@ -116,8 +115,9 @@
               type="primary"
               :loading="loading"
               :disabled="forgotCooldown > 0"
+              native-type="submit"
               size="large"
-              style="width:100%"
+              class="w-full"
               @click="handleForgotPassword"
             >
               {{ loading ? '寄送中…' : forgotCooldown > 0 ? `${forgotCooldown}s 後可重新寄送` : '寄出重設連結 📬' }}
@@ -139,6 +139,7 @@ useHead({ title: '波吉的美食地圖' })
 
 type Mode = 'login' | 'register' | 'forgot'
 
+const msg       = useMessage()
 const router    = useRouter()
 const token     = useCookie('auth_token', { maxAge: 3600 })
 const sessionId = useCookie('session_id', { maxAge: 3600 })
@@ -210,7 +211,7 @@ async function handleLogin(): Promise<void> {
     await router.push('/map')
   } catch (err: unknown) {
     const e = err as { data?: { statusMessage?: string } }
-    ElMessage.error(e.data?.statusMessage ?? '登入失敗，請稍後再試')
+    msg.error(e.data?.statusMessage ?? '登入失敗，請稍後再試')
     loading.value = false
   }
 }
@@ -238,7 +239,7 @@ async function handleRegister(): Promise<void> {
     }
   } catch (err: unknown) {
     const e = err as { data?: { statusMessage?: string } }
-    ElMessage.error(e.data?.statusMessage ?? '註冊失敗，請稍後再試')
+    msg.error(e.data?.statusMessage ?? '註冊失敗，請稍後再試')
   } finally {
     loading.value = false
   }
@@ -258,7 +259,7 @@ async function handleForgotPassword(): Promise<void> {
     startCooldown(60)
   } catch (err: unknown) {
     const e = err as { data?: { statusMessage?: string } }
-    ElMessage.error(e.data?.statusMessage ?? '寄送失敗，請稍後再試')
+    msg.error(e.data?.statusMessage ?? '寄送失敗，請稍後再試')
   } finally {
     loading.value = false
   }
@@ -266,6 +267,9 @@ async function handleForgotPassword(): Promise<void> {
 </script>
 
 <style scoped>
+/* Tailwind 4 在 scoped style 裡用 @apply 需要 @reference 指向主 CSS，否則找不到自定義 token */
+@reference "~/assets/css/main.css";
+
 /* 讓 el-tabs 標題列視覺與 food-caramel 設計對齊 */
 :deep(.login-tabs .el-tabs__header) {
   margin-bottom: 0;
@@ -298,5 +302,25 @@ async function handleForgotPassword(): Promise<void> {
 }
 :deep(.login-tabs .el-tabs__content) {
   padding: 0;
+}
+
+/*
+  el-button 的顏色透過 CSS variables 控制。
+  在這裡覆蓋 primary 按鈕的背景/邊框色，讓它套用 food-caramel。
+  --color-food-caramel 是 Tailwind 4 @theme 自動暴露的 CSS custom property。
+*/
+:deep(.el-button--primary) {
+  --el-button-bg-color:             var(--color-food-caramel);
+  --el-button-border-color:         var(--color-food-caramel);
+  --el-button-hover-bg-color:       var(--color-food-orange);
+  --el-button-hover-border-color:   var(--color-food-orange);
+  --el-button-active-bg-color:      var(--color-food-orange);
+  --el-button-active-border-color:  var(--color-food-orange);
+}
+
+/* link 型 primary 按鈕（忘記密碼？）文字色也一起對齊 */
+:deep(.el-button.is-link.el-button--primary) {
+  --el-button-text-color: var(--color-food-caramel);
+  --el-button-hover-text-color: var(--color-food-orange);
 }
 </style>

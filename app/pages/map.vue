@@ -204,9 +204,11 @@ function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number): num
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+const msg    = useMessage()
 const router = useRouter()
 const route  = useRoute()
 const token  = useCookie('auth_token')
+const { authFetch } = useAuthFetch(token)
 
 const sidebarOpen         = ref(false)
 const selectedSpot        = ref<GeoLocation | null>(null)
@@ -328,9 +330,8 @@ async function processPendingInvites(): Promise<void> {
   const joined: string[] = []
   for (const inviteToken of pending) {
     try {
-      const res = await $fetch<{ trip: { name: string }; already_member: boolean }>('/api/trips/join', {
+      const res = await authFetch<{ trip: { name: string }; already_member: boolean }>('/api/trips/join', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token.value ?? ''}` },
         body: { token: inviteToken },
       })
       if (!res.already_member) joined.push(res.trip.name)
@@ -340,7 +341,7 @@ async function processPendingInvites(): Promise<void> {
   }
   localStorage.removeItem('pending_trip_invites')
   if (joined.length) {
-    alert(`已加入旅程：${joined.join('、')}`)
+    msg.success(`已加入旅程：${joined.join('、')}`)
   }
 }
 

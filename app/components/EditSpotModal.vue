@@ -228,6 +228,7 @@ const emit = defineEmits<{
 }>()
 
 const token = useCookie('auth_token')
+const { authFetch } = useAuthFetch(token)
 
 const category  = ref(props.spot.category || 'food')
 const emoji     = ref(props.spot.emoji || '📍')
@@ -262,9 +263,8 @@ async function handleSave() {
   saving.value = true
   savingStatus.value = '更新中…'
   try {
-    const { spot } = await $fetch<{ spot: DbSpot }>(`/api/spots/${props.spot.id}`, {
+    const { spot } = await authFetch<{ spot: DbSpot }>(`/api/spots/${props.spot.id}`, {
       method: 'PATCH',
-      headers: { Authorization: `Bearer ${token.value ?? ''}` },
       body: {
         name:       name.value.trim(),
         emoji:      emoji.value || '📍',
@@ -282,10 +282,9 @@ async function handleSave() {
       form.append('spotId', props.spot.id)
       newFiles.value.forEach(f => form.append('photos', f))
       try {
-        const { photo_urls } = await $fetch<{ photo_urls: string[] }>('/api/spots/upload-photos', {
+        const { photo_urls } = await authFetch<{ photo_urls: string[] }>('/api/spots/upload-photos', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token.value ?? ''}` },
-          body: form,
+              body: form,
         })
         spot.photo_urls = photo_urls
       } catch {
@@ -295,7 +294,7 @@ async function handleSave() {
 
     emit('saved', spot)
   } catch (err: any) {
-    if (isTokenError(err)) { useTokenExpiry().triggerExpiry(); return }
+    if (isAuthExpiredError(err)) return
     saveError.value = err.data?.statusMessage ?? '更新失敗，請稍後再試'
   } finally {
     saving.value = false

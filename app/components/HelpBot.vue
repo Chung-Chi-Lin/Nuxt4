@@ -157,6 +157,7 @@ const remaining = ref<number | null>(null)
 const scrollEl  = ref<HTMLElement | null>(null)
 
 const token = useCookie('auth_token')
+const { authFetch } = useAuthFetch(token)
 
 const canSend = computed(() => inputText.value.trim().length > 0 && !sending.value)
 
@@ -246,9 +247,8 @@ async function sendMessage(): Promise<void> {
   scrollToBottom()
 
   try {
-    const res = await $fetch<{ answer: string; remaining: number }>('/api/bot/chat', {
+    const res = await authFetch<{ answer: string; remaining: number }>('/api/bot/chat', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token.value}` },
       body: {
         message: text,
         spots:   props.spots?.slice(0, 30) ?? [],

@@ -5,6 +5,9 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   modules: ['@element-plus/nuxt'],
+  elementPlus: {
+    importStyle: false, // 停用自動注入，改由 main.css 統一控管
+  },
   app: {
     head: {
       link: [
