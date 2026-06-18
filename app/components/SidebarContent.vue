@@ -165,6 +165,7 @@
       @waypoints-updated="emit('waypoints-updated', $event)"
       @route-ready="emit('route-ready', $event)"
       @route-cleared="emit('route-cleared')"
+      @trip-switched="emit('trip-switched')"
     />
 
   </div>
@@ -191,6 +192,7 @@ const emit = defineEmits<{
   'route-ready':       [geometry: any]
   'route-cleared':     []
   'tab-changed':       [tab: string]
+  'trip-switched':     []
 }>()
 
 const activeTab = ref<'spots' | 'trip'>('spots')

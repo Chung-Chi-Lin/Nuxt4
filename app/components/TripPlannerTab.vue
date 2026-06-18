@@ -202,6 +202,7 @@ const emit = defineEmits<{
   'waypoints-updated': [waypoints: TripWaypoint[]]
   'route-ready':       [geometry: any]
   'route-cleared':     []
+  'trip-switched':     []
 }>()
 
 // ── State ──────────────────────────────────────────────────────
@@ -295,7 +296,10 @@ function syncLocalWaypoints() {
 watch(activeDayIndex, syncLocalWaypoints)
 
 async function onTripChange() {
-  if (selectedTripId.value) await loadTrip(selectedTripId.value)
+  if (selectedTripId.value) {
+    await loadTrip(selectedTripId.value)
+    emit('trip-switched')
+  }
 }
 
 // ── Create / Delete trip ──────────────────────────────────────

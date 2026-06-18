@@ -100,6 +100,7 @@
             @route-ready="onRouteReady"
             @route-cleared="onRouteCleared"
             @tab-changed="sidebarTabIsTrip = ($event === 'trip')"
+            @trip-switched="onTripSwitched"
           />
         </div>
       </aside>
@@ -156,6 +157,7 @@
               @route-ready="onRouteReady"
               @route-cleared="onRouteCleared"
               @tab-changed="sidebarTabIsTrip = ($event === 'trip')"
+              @trip-switched="onTripSwitched"
             />
           </div>
 
@@ -390,4 +392,10 @@ watch(activeTripWaypoints, (wps) => {
     tripTabJustOpened.value = false
   }
 }, { deep: true })
+
+function onTripSwitched() {
+  if (activeTripWaypoints.value.length > 0) {
+    flyToTripTrigger.value++
+  }
+}
 </script>
